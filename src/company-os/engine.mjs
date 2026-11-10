@@ -1,4 +1,5 @@
 import {nextCommercialAction} from './replication.mjs';
+import {canTransition,summarizeWork} from './generated/feature_41dabf588aa9.mjs';
 import crypto from 'node:crypto';
 import {TASKS, validatePacket,canRun} from './policy.mjs';
 const sha = v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -60,6 +61,7 @@ export async function runOne(pool) {
    const r=await client.query("SELECT * FROM earnloop_os_work WHERE state='queued' ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED");
    row=r.rows[0];
    if(!row) {await client.query('COMMIT');return null;}
+   if(!canTransition(row.state,'running')) throw new Error('ILLEGAL_WORK_STATE_TRANSITION');
    if(!canRun(row)) {await client.query("UPDATE earnloop_os_work SET state='blocked', updated_at=NOW() WHERE id=$1",[row.id]);await client.query('COMMIT');return {id:row.id,state:'blocked'};}
    await client.query("UPDATE earnloop_os_work SET state='running',updated_at=NOW() WHERE id=$1",[row.id]);
    await client.query('COMMIT');
@@ -79,5 +81,5 @@ export async function overview(pool) {
  const k=await metrics(pool);
  const w=await pool.query('SELECT id,type,objective,owner,authority,risk,state,created_at,updated_at FROM earnloop_os_work ORDER BY created_at DESC LIMIT 40');
  const r=await pool.query('SELECT work_id,result_hash,verification,created_at FROM earnloop_os_receipts ORDER BY created_at DESC LIMIT 20');
- return {product:'earnloop',company_os:'dedicated',kpis:k,work:w.rows,receipts:r.rows,paid_partners_configured:!!(process.env.PARTNER_NAME&&process.env.PARTNER_POSTBACK_SECRET),payouts_enabled:false};
+ return {product:'earnloop',company_os:'dedicated',kpis:k,work:w.rows,work_state_summary:summarizeWork(w.rows),receipts:r.rows,paid_partners_configured:!!(process.env.PARTNER_NAME&&process.env.PARTNER_POSTBACK_SECRET),payouts_enabled:false};
 }
