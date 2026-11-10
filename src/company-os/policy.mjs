@@ -12,6 +12,7 @@ export const TASKS = Object.freeze({
   snapshot_metrics: {role:'revenue', authority:'auto', risk:'read_only', purpose:'Evidence-backed business KPI snapshot'},
   audit_partner_events: {role:'trust', authority:'auto', risk:'read_only', purpose:'Inspect reported/settled/reversed events without paying anyone'},
   growth_diagnosis: {role:'growth', authority:'auto', risk:'read_only', purpose:'Inspect actual activation and referral funnel'},
+  replication_launch_check: {role:'revenue',authority:'auto',risk:'read_only',purpose:'Next evidence-backed action from exact source map and publisher gates'},
   draft_partner_outreach: {role:'partnerships',authority:'auto',risk:'draft_only',purpose:'Build outreach draft, never transmit'},
   launch_paid_campaign: {role:'growth',authority:'founder',risk:'spend',purpose:'Requires founder authorization and a separate execution connector'},
   authorize_reward_payout: {role:'revenue',authority:'founder',risk:'money_movement',purpose:'Requires partner settlement and separate regulated payout implementation'}

@@ -1,0 +1,19 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {REPLICATION_TARGETS,nextCommercialAction} from '../src/company-os/replication.mjs';
+
+test('exact upstream sources and targets are machine-readable, without claim of licensed Freecash source',()=>{
+ assert.equal(REPLICATION_TARGETS.length,8);
+ for(const entry of REPLICATION_TARGETS){assert.match(entry.source,/^https:\/\//);assert.ok(entry.method);assert.ok(entry.target);assert.ok(entry.owner);}
+ assert.equal(REPLICATION_TARGETS.find(x=>x.id==='benchmark').method,'replicate_mechanics_only');
+ assert.match(REPLICATION_TARGETS.find(x=>x.id==='saas_starter').commit,/^[a-f0-9]{40}$/);
+});
+test('commercial engine prioritizes real acceptance and cash before user growth',()=>{
+ assert.equal(nextCommercialAction({},{}).action,'obtain_publisher_acceptance');
+ const accepted={TOROX_PUBLISHER_APPROVED:'true',TOROX_APPROVAL_REFERENCE:'real-document'};
+ assert.equal(nextCommercialAction({},accepted).action,'configure_publisher_placement_privately');
+ const ready={...accepted,TOROX_PLACEMENT_ID:'source',TOROX_APP_TOKEN:'private',TOROX_MODE:'staging'};
+ assert.equal(nextCommercialAction({},ready).action,'verify_real_partner_callbacks_and_reversals');
+ assert.equal(nextCommercialAction({settled_events:0},{...ready,TOROX_POSTBACK_VERIFIED:'true'}).action,'obtain_first_confirmed_funded_conversion');
+ assert.equal(nextCommercialAction({settled_events:1,members:3},{...ready,TOROX_POSTBACK_VERIFIED:'true'}).action,'acquire_20_real_members');
+});
