@@ -45,7 +45,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/company-os-delivery.py
       - name: Preserve original source and generated candidate hashes
-        if: ${{ steps.deliver.outputs.state == 'OPENED' }}
+        if: ${{ (steps.deliver.outputs.state == 'OPENED' || steps.deliver.outputs.state == 'BRANCH_READY') }}
         uses: actions/upload-artifact@v4
         with:
           name: sina-earnloop-workpacket-${{ github.run_id }}
@@ -54,7 +54,7 @@ jobs:
           retention-days: 30
 
   readback:
-    if: ${{ needs.candidate.outputs.state == 'OPENED' }}
+    if: ${{ (needs.candidate.outputs.state == 'OPENED' || needs.candidate.outputs.state == 'BRANCH_READY') }}
     needs: candidate
     runs-on: ubuntu-latest
     timeout-minutes: 12
