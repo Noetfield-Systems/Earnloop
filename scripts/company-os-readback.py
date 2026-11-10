@@ -62,7 +62,8 @@ def main():
          "status":"READBACK_REPORTED",
          "source_sha":evidence["source_sha"],
          "commit_sha":expected,
-         "pr_url":evidence["pr_url"]
+         "pr_url":evidence.get("pr_url"),
+         "branch_ref":evidence["branch_ref"]
        }).encode(),
        headers={"Authorization":"Bearer "+token,"Content-Type":"application/json"})
     with urllib.request.urlopen(request, timeout=15) as stream:
