@@ -11,6 +11,7 @@ import {setupCompanyOS,createWork,runOne,overview,metrics} from './company-os/en
 import {ROLES,TASKS} from './company-os/policy.mjs';
 import {setupCommercial,listCommercial,approveCommercial,configureContact,dispatchCommercial,recordCommercialEvidence} from './company-os/commercial.mjs';
 import {REPLICATION_TARGETS,nextCommercialAction} from './company-os/replication.mjs';
+import {assessCompanyOutcome} from './company-os/shared-evidence-gate.mjs';
 import {toroxConfigured,createToroxWallSession,parseToroxPostback} from './torox.mjs';
 
 const PORT=Number(process.env.PORT||3000);
@@ -140,6 +141,10 @@ async function server(req,res){
  }
  if(route.startsWith('/api/company-os/')){
   if(!admin(req)) return fail(res,401,'Administrator authorization required');
+  if(method==='POST'&&route==='/api/company-os/evidence-gate'){
+   const {value}=await body(req,4096);
+   return send(res,200,assessCompanyOutcome(value));
+  }
   if(method==='GET'&&route==='/api/company-os/opportunities')return send(res,200,{candidates:await opportunityOverview(pool)});
   if(method==='GET'&&route==='/api/company-os/finance')return send(res,200,await financeOverview(pool));
   if(method==='GET'&&route==='/api/company-os/support')return send(res,200,{cases:(await pool.query('SELECT * FROM earnloop_support ORDER BY created_at DESC LIMIT 100')).rows,sponsor_leads:(await pool.query('SELECT * FROM earnloop_sponsor_leads ORDER BY created_at DESC LIMIT 100')).rows});
