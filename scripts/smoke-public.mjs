@@ -1,0 +1,32 @@
+// Non-destructive external production smoke: never creates users or financial records.
+import assert from 'node:assert/strict';
+const base = (process.env.EARNLOOP_PUBLIC_URL || 'https://earnloop-web-production.up.railway.app').replace(/\/$/, '');
+const check = async (path, expected, init={}) => {
+  const response = await fetch(base+path, {redirect:'manual', signal:AbortSignal.timeout(15000), ...init});
+  assert.equal(response.status, expected, `${path}: expected ${expected}, got ${response.status}`);
+  return response;
+};
+const health=await (await check('/health',200)).json();
+assert.equal(health.ok,true);
+assert.equal(health.database,'connected');
+assert.equal(health.product,'earnloop');
+assert.equal(health.company_os,'dedicated');
+assert.equal(health.cash_payouts_enabled,false);
+const home=await (await check('/',200)).text();
+assert.match(home, /Earnloop/);
+assert.match(home, /Founding|FOUNDING/);
+const stats=await (await check('/api/stats',200)).json();
+assert.ok(Number.isSafeInteger(stats.members) && stats.members >= 0);
+assert.ok(Number.isSafeInteger(stats.early_access) && stats.early_access >= 0);
+assert.equal(stats.cash_payouts_enabled,false);
+const leaderboard=await (await check('/api/leaderboard',200)).json();
+assert.ok(Array.isArray(leaderboard.leaders));
+const me=await (await check('/api/me',200)).json();
+assert.equal(me.member,null);
+const admin=await (await check('/api/company-os/overview',401)).json();
+assert.match(admin.error,/authorization/i);
+const consolePage=await (await check('/company-os',200)).text();
+assert.match(consolePage,/Company OS/);
+const callback=await (await check('/api/postback',503,{method:'POST',headers:{'content-type':'application/json'},body:'{}'})).json();
+assert.match(callback.error,/partner/i);
+console.log(JSON.stringify({status:'PASS',tested:['health_and_database','root_html','real_stats','leaderboard','anonymous_member','admin_gate','company_os_console','disabled_unsigned_partner'],members:stats.members,early_access:stats.early_access,revenue_verified:false}));
