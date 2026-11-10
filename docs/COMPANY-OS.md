@@ -8,10 +8,11 @@ Sina Founder OS ← approved strategic summary/exception; NOT product code and N
 This is a product-specific Company OS, not a separate competing general-purpose agent registry or a deployment of Paperclip. Product-specific role definitions and authority are in `src/company-os/policy.mjs`; WorkPackets, audit receipts, KPI snapshots, and runner are in `engine.mjs`. After a real partner is approved, its offerwall adapter can be added behind authenticated, rate-limited partner-specific callbacks.
 
 ## Actual operating loop
-The web service runs an idempotent 15-minute tick. It creates three WorkPackets per UTC day:
+The web service runs an idempotent 15-minute tick. It creates four WorkPackets per UTC day:
 - revenue snapshot (actual DB numbers)
 - trust audit (partner event status; not money movement)
 - growth diagnosis (activation/referral funnel from members)
+- replication launch check (evidence-constrained next commercial decision)
 
 `createWork` requires a type, an objective and a unique idempotency key. PostgreSQL is the single source of truth. A transaction using `FOR UPDATE SKIP LOCKED` claims one WorkPacket at a time. The runner accepts only `auto/read_only` or `auto/draft_only` tasks. A JSON evidence result and SHA-256 digest are attached to a completed packet. The digest checks local consistency, **not independent third-party verification**.
 
@@ -49,3 +50,11 @@ Admin token must be at least 32 characters, set privately as `COMPANY_OS_ADMIN_T
 5. `/health` healthy; member cookie/session retains original `el_session` and SHA-256 hashing; join/check-in/referral flow manually checked.
 6. Private Company OS produces at least one real KPI receipt; independent verification is separate.
 7. Advertiser and cash revenue stay explicitly unverified until confirmed.
+
+## Commercial action outbox (same PostgreSQL, no new scheduler)
+
+`src/company-os/commercial.mjs` creates three durable, canonical prospects on startup: official Torox publisher portal, ayeT publisher/contact, and a first sponsor prospect pending a real contact. They are domain-specific commercial records, not a duplicate Company OS task registry. The private `/company-os` page and authenticated `/api/company-os/commercial` list prepared applications, exact message, channel, due follow-up and recorded evidence.
+
+Founder approval requires a **separate** 32+ character `COMMERCIAL_FOUNDER_APPROVAL_TOKEN` (`x-founder-approval-token`). An email can be approved only against a fingerprint of its exact recipient/subject/body. Dispatch requires `RESEND_API_KEY`, a verified sender in `OUTREACH_FROM`, and the exact address in `OUTREACH_ALLOWED_RECIPIENTS`. No implicit send, mass mailing, or retry of ambiguous network failures. A successful Resend API response with a provider message ID marks `sent` (accepted for delivery), **not delivered** and not partner-approved. A 7-day follow-up becomes due for operator attention; automatic spam is disabled. Portal registration requires an actual person or authorized external browser agent to submit true details and accept any necessary terms; clicking its official link does not mark it sent.
+
+Commercial routes under existing admin-token auth: `GET /api/company-os/commercial`, `POST /api/company-os/commercial/approve`, `/contact`, `/send`, `/evidence`. `approve` and `contact` also require the separate Founder token. Evidence entered via `/evidence` is explicitly `operator_reported` and does not flip the Torox acceptance gate or make cash appear. Production must never count drafted messages, email API acceptance, or self-reported portal tickets as independent publisher verification.
