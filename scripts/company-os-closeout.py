@@ -14,8 +14,16 @@ def post(url,body,token):
     with urllib.request.urlopen(req,timeout=90) as response:
         return json.load(response)
 def main():
-    evidence=json.loads(Path(os.environ['SINA_EVIDENCE_FILE']).read_text())
     token=module.authorize()
+    path=Path(os.environ['SINA_EVIDENCE_FILE'])
+    if path.exists():
+        evidence=json.loads(path.read_text())
+    else:
+        req=urllib.request.Request(module.API+'/pending-verification',headers={'Authorization':'Bearer '+token})
+        with urllib.request.urlopen(req,timeout=30) as response: pending=json.load(response)
+        if pending.get('state')=='NO_PENDING_VERIFICATION':
+            print(json.dumps(pending)); return
+        evidence=pending['evidence']
     receipt=post(VERIFIER,evidence,token)
     result=post(module.API+'/verify',receipt,token)
     if result.get('state')!='TECHNICALLY_VERIFIED': raise RuntimeError('VERIFICATION_NOT_RECORDED')

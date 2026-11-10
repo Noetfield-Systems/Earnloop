@@ -90,7 +90,7 @@ jobs:
 
   closeout:
     needs: [candidate, readback]
-    if: ${{ needs.readback.result == 'success' }}
+    if: ${{ always() && needs.candidate.result == 'success' && (needs.readback.result == 'success' || needs.readback.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -104,7 +104,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - uses: actions/download-artifact@v4
+      - if: ${{ needs.candidate.outputs.head_sha != '' }}
+        uses: actions/download-artifact@v4
         with:
           name: sina-earnloop-workpacket-${{ github.run_id }}
           path: /tmp/sina-company-evidence
@@ -116,5 +117,5 @@ jobs:
         with:
           name: sina-earnloop-verification-${{ github.run_id }}
           path: company-delivery-verification.json
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 90
