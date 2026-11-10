@@ -45,7 +45,7 @@ async function body(req,max=12000){
  let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>max)throw Object.assign(Error('Request too large'),{status:413});}
  try {return {value:JSON.parse(raw||'{}'),raw};}catch{throw Object.assign(Error('Malformed JSON'),{status:400});}
 }
-async function member(req){const token=cookie(req);if(!token)return null;const r=await pool.query('SELECT id,code,xp,last_checkin,created_at FROM earnloop_members WHERE token_hash=$1',[sha(token)]);return r.rows[0]||null;}
+async function member(req){const token=cookie(req);if(!token)return null;const r=await pool.query('SELECT id,code,xp,last_checkin,checkin_streak,created_at FROM earnloop_members WHERE token_hash=$1',[sha(token)]);return r.rows[0]||null;}
 async function init(){
  await pool.query(`CREATE TABLE IF NOT EXISTS earnloop_members(
    id UUID PRIMARY KEY,token_hash TEXT NOT NULL UNIQUE,code TEXT NOT NULL UNIQUE,
@@ -68,6 +68,7 @@ async function init(){
    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
    PRIMARY KEY(provider,event_id));
  CREATE INDEX IF NOT EXISTS earnloop_referrers_idx ON earnloop_members(referrer_id);`);
+ await pool.query('ALTER TABLE earnloop_members ADD COLUMN IF NOT EXISTS checkin_streak INT NOT NULL DEFAULT 0 CHECK(checkin_streak>=0)');
  await setupCompanyOS(pool);
 }
 async function server(req,res){
@@ -76,7 +77,7 @@ async function server(req,res){
   try{await pool.query('SELECT 1');return send(res,200,{ok:true,database:'connected',product:'earnloop',company_os:'dedicated',cash_payouts_enabled:false});}
   catch{return fail(res,503,'Database unavailable');}
  }
- const files={'/':'index.html','/privacy':'privacy.html','/terms':'terms.html','/company-os':'company-os.html','/style.css':'style.css','/app.js':'app.js','/company-os.js':'company-os.js'};
+ const files={'/':'index.html','/privacy':'privacy.html','/terms':'terms.html','/company-os':'company-os.html','/style.css':'style.css','/premium.css':'premium.css','/app.js':'app.js','/experience.js':'experience.js','/company-os.js':'company-os.js'};
  if(method==='GET'&&Object.hasOwn(files,route)){
   const file=files[route],type=file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8';
   const raw=await fs.readFile(path.join(root,'public',file));return send(res,200,raw,type);
@@ -115,7 +116,7 @@ async function server(req,res){
  if(method==='GET'&&route==='/api/me'){
   const m=await member(req);if(!m)return send(res,200,{member:null});
   const rr=await pool.query('SELECT COUNT(*)::INT n FROM earnloop_members WHERE referrer_id=$1',[m.id]);
-  return send(res,200,{member:{id:m.id,code:m.code,xp:m.xp,last_checkin:m.last_checkin,unverified_invites:rr.rows[0].n},cash_cents:0,cash_payouts_enabled:false});
+  return send(res,200,{member:{id:m.id,code:m.code,xp:m.xp,last_checkin:m.last_checkin,unverified_invites:rr.rows[0].n,streak:m.checkin_streak},cash_cents:0,cash_payouts_enabled:false});
  }
  if(route.startsWith('/api/company-os/')){
   if(!admin(req)) return fail(res,401,'Administrator authorization required');
@@ -142,8 +143,8 @@ async function server(req,res){
   }
   if(route==='/api/checkin'){
    const m=await member(req);if(!m)return fail(res,401,'Join first');
-   const r=await pool.query("UPDATE earnloop_members SET xp=xp+15,last_checkin=(NOW() AT TIME ZONE 'UTC')::DATE WHERE id=$1 AND (last_checkin IS NULL OR last_checkin<(NOW() AT TIME ZONE 'UTC')::DATE) RETURNING xp",[m.id]);
-   return send(res,200,r.rowCount?{awarded:true,xp:r.rows[0].xp,earned_xp:15}:{awarded:false,xp:m.xp,message:'Already checked in today'});
+   const r=await pool.query("UPDATE earnloop_members SET xp=xp+15,checkin_streak=CASE WHEN last_checkin=((NOW() AT TIME ZONE 'UTC')::DATE - 1) THEN checkin_streak+1 ELSE 1 END,last_checkin=(NOW() AT TIME ZONE 'UTC')::DATE WHERE id=$1 AND (last_checkin IS NULL OR last_checkin<(NOW() AT TIME ZONE 'UTC')::DATE) RETURNING xp,checkin_streak",[m.id]);
+   return send(res,200,r.rowCount?{awarded:true,xp:r.rows[0].xp,streak:r.rows[0].checkin_streak,earned_xp:15}:{awarded:false,xp:m.xp,streak:m.checkin_streak,message:'Already checked in today'});
   }
   if(route==='/api/join'){
    const {value}=await body(req),email=String(value.email||'').trim().toLowerCase();
