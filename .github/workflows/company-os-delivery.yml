@@ -1,5 +1,8 @@
 name: SINA Company OS - governed Earnloop code delivery
 on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/company-os-delivery.yml", "scripts/company-os-closeout.py"]
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
@@ -84,3 +87,34 @@ jobs:
         run: |
           npm install --ignore-scripts --no-audit --no-fund
           python3 scripts/company-os-readback.py
+
+  closeout:
+    needs: [candidate, readback]
+    if: ${{ needs.readback.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: sina-earnloop-workpacket-${{ github.run_id }}
+          path: /tmp/sina-company-evidence
+      - name: Verify GitHub provenance with isolated verifier and advance existing queue
+        env:
+          SINA_EVIDENCE_FILE: /tmp/sina-company-evidence/company-delivery-evidence.json
+        run: python3 scripts/company-os-closeout.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sina-earnloop-verification-${{ github.run_id }}
+          path: company-delivery-verification.json
+          if-no-files-found: error
+          retention-days: 90
