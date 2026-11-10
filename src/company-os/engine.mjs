@@ -1,3 +1,4 @@
+import {nextCommercialAction} from './replication.mjs';
 import crypto from 'node:crypto';
 import {TASKS, validatePacket,canRun} from './policy.mjs';
 const sha = v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
@@ -47,6 +48,7 @@ export function evaluate(type, facts) {
   case 'snapshot_metrics': return {kind:'metrics',facts,analysis:'Actual database figures; partner settlement status is not proof of cash received. Operational cost and payout balances not included.',cash_verified:false};
   case 'audit_partner_events': return {kind:'trust_audit',reported_events:facts.reported_events,settled_events:facts.settled_events,blocker:facts.reported_events?'Independent provider reconciliation required':'No reported partner events',money_moved:false};
   case 'growth_diagnosis': return {kind:'growth_diagnosis',members:facts.members,activated:facts.activated,referrals:facts.referrals,activation_rate:facts.members?Number((facts.activated/facts.members).toFixed(4)):null,referral_rate:facts.members?Number((facts.referrals/facts.members).toFixed(4)):null,advice:facts.members===0?'Acquire the first real members before optimizing conversion.':(facts.activated/facts.members<0.3?'Improve first-session activation with daily non-cash quests.':'Measure returning members and verify an advertiser-funded conversion before scaling.'),money_moved:false};
+  case 'replication_launch_check': return {kind:'copy_first_execution',next_action:nextCommercialAction(facts,process.env),money_moved:false,external_action_executed:false};
   case 'draft_partner_outreach': return {kind:'draft',subject:'Earnloop publisher application',message:'Earnloop is an early-stage Canadian web rewards community. We seek approved offerwall publisher access, Canadian inventory, signed callbacks, reversal reports and disclosed commercial terms. We do not claim traffic or earnings not yet verified.',sent:false,money_moved:false};
   default: throw new Error('No safe executor available');
  }

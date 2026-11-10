@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import pg from 'pg';
 import {setupCompanyOS,createWork,runOne,overview,metrics} from './company-os/engine.mjs';
 import {ROLES,TASKS} from './company-os/policy.mjs';
+import {REPLICATION_TARGETS,nextCommercialAction} from './company-os/replication.mjs';
 import {toroxConfigured,createToroxWallSession,parseToroxPostback} from './torox.mjs';
 
 const PORT=Number(process.env.PORT||3000);
@@ -118,6 +119,7 @@ async function server(req,res){
  }
  if(route.startsWith('/api/company-os/')){
   if(!admin(req)) return fail(res,401,'Administrator authorization required');
+  if(method==='GET'&&route==='/api/company-os/replication') return send(res,200,{targets:REPLICATION_TARGETS,next_action:nextCommercialAction(await metrics(pool),process.env)});
   if(method==='GET'&&route==='/api/company-os/overview')return send(res,200,{...await overview(pool),roles:ROLES,allowed_work:TASKS});
   if(method==='POST'&&route==='/api/company-os/work'){
    const {value}=await body(req);try{return send(res,201,{work:await createWork(pool,value)});}catch(e){return fail(res,400,e.message);}
@@ -173,7 +175,7 @@ async function operationsTick(){
  if(loopRunning)return; loopRunning=true;
  try {
   const day=new Date().toISOString().slice(0,10);
-  for (const type of ['snapshot_metrics','audit_partner_events','growth_diagnosis']) {
+  for (const type of ['snapshot_metrics','audit_partner_events','growth_diagnosis','replication_launch_check']) {
    await createWork(pool,{type,objective:`Daily evidence-backed ${type.replaceAll('_',' ')} for ${day}`,idempotency_key:`daily:${day}:${type}`});
   }
   for(let i=0;i<4;i++){const result=await runOne(pool);if(!result)break;}
