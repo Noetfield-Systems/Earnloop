@@ -89,7 +89,7 @@ async function init(){
 async function server(req,res){
  const url=new URL(req.url||'/', 'https://localhost');const route=url.pathname,method=req.method||'GET';
  if(method==='GET'&&route==='/health'){
-  try{await pool.query('SELECT 1');return send(res,200,{ok:true,database:'connected',product:'earnloop',company_os:'dedicated',cash_payouts_enabled:false});}
+  try{await pool.query('SELECT 1');return send(res,200,{ok:true,database:'connected',product:'earnloop',company_os:'dedicated',cash_payouts_enabled:false,revision:process.env.RAILWAY_GIT_COMMIT_SHA||null});}
   catch{return fail(res,503,'Database unavailable');}
  }
  const files={'/':'index.html','/challenge':'index.html','/sponsor':'sponsor.html','/guide':'guide.html','/member-loop.js':'member-loop.js','/loop.css':'loop.css','/social.svg':'social.svg','/privacy':'privacy.html','/terms':'terms.html','/company-os':'company-os.html','/style.css':'style.css','/premium.css':'premium.css','/app.js':'app.js','/experience.js':'experience.js','/company-os.js':'company-os.js'};
@@ -191,8 +191,10 @@ async function server(req,res){
    const {value}=await body(req);const ref=String(value.ref||'').trim().toLowerCase().slice(0,30);
    const par=/^[a-f0-9]{12}$/.test(ref)?await pool.query('SELECT id FROM earnloop_members WHERE code=$1',[ref]):{rows:[]};
    const token=random(32),id=crypto.randomUUID(),code=random(6);
-   await pool.query('INSERT INTO earnloop_members(id,token_hash,code,referrer_id) VALUES($1,$2,$3,$4)',[id,sha(token),code,par.rows[0]?.id||null]);
-   await activity(pool,id,'member_created','signup',{source:/^[a-zA-Z0-9_-]{1,40}$/.test(value.source||'')?value.source:(par.rows[0]?'referral':'direct')});
+   const c=await pool.connect();try{await c.query('BEGIN');
+   await c.query('INSERT INTO earnloop_members(id,token_hash,code,referrer_id) VALUES($1,$2,$3,$4)',[id,sha(token),code,par.rows[0]?.id||null]);
+   await activity(c,id,'member_created','signup',{source:/^[a-zA-Z0-9_-]{1,40}$/.test(value.source||'')?value.source:(par.rows[0]?'referral':'direct')});
+   await c.query('COMMIT');}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
    return send(res,201,{member:{id,code,xp:0}},'application/json; charset=utf-8',{'set-cookie':`el_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=15552000`});
   }
   if(route==='/api/checkin'){
@@ -237,7 +239,7 @@ async function operationsTick(){
   for (const type of ['discover_opportunities','snapshot_metrics','audit_partner_events','growth_diagnosis','replication_launch_check']) {
    await createWork(pool,{type,objective:`Daily evidence-backed ${type.replaceAll('_',' ')} for ${day}`,idempotency_key:`daily:${day}:${type}`});
   }
-  for(let i=0;i<8;i++){const result=await runOne(pool);if(!result)break;}
+  for(let i=0;i<8;i++){const result=await runOne(pool);if(!result)break;console.log('company_os_execution',JSON.stringify(result));}
  }catch(err){console.error('company_os_tick_failure',err.message);}finally{loopRunning=false;}
 }
 const serverHandle=http.createServer((req,res)=>{Promise.resolve(server(req,res)).catch(err=>{console.error('request_failure',err.message);if(!res.headersSent)fail(res,err.status||500,err.status?err.message:'Unexpected server error');else res.end();});});
