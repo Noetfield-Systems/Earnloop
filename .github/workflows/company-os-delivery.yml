@@ -1,0 +1,85 @@
+name: SINA Company OS - governed Earnloop code delivery
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+  issues:
+    types: [opened]
+permissions:
+  contents: read
+concurrency:
+  group: sina-company-os-delivery-earnloop
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    if: ${{ github.event_name != 'issues' || (github.event.issue.title == 'SINA: Run Company OS Delivery' && github.event.issue.user.login == 'kazemnezhadsina144-dot') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    outputs:
+      state: ${{ steps.deliver.outputs.state }}
+      head_sha: ${{ steps.deliver.outputs.head_sha }}
+      workstream: ${{ steps.deliver.outputs.workstream }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install existing application dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Claim canonical Founder OS work and build one bounded candidate
+        id: deliver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/company-os-delivery.py
+      - name: Preserve original source and generated candidate hashes
+        if: ${{ steps.deliver.outputs.state == 'OPENED' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: sina-earnloop-workpacket-${{ github.run_id }}
+          path: company-delivery-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+
+  readback:
+    if: ${{ needs.candidate.outputs.state == 'OPENED' }}
+    needs: candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.candidate.outputs.head_sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@v4
+        with:
+          name: sina-earnloop-workpacket-${{ github.run_id }}
+          path: /tmp/sina-company-evidence
+      - name: Independent runner source readback and complete application tests
+        env:
+          SINA_EVIDENCE_FILE: /tmp/sina-company-evidence/company-delivery-evidence.json
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          python3 scripts/company-os-readback.py
