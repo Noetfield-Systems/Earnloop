@@ -141,25 +141,37 @@ def main():
               "Internal code candidate with npm run verify PASS. "+
               "No independent production result, payout, live users, "+
               "external action, automatic merge or deploy is claimed.")
-        pr=shell("gh","pr","create","--base","main","--head",branch,
-                 "--title","Company OS: Earnloop capability "+workstream[:12],
-                 "--body",body,timeout=90)
-        if not re.fullmatch(r"https://github\.com/Noetfield-Systems/Earnloop/pull/[1-9][0-9]{0,8}",pr):
+        # GitHub Actions may have Contents:write but be barred by repo settings
+        # from creating pull requests. Preserve the real source artifact and
+        # independently test it instead of failing/dropping the entire mission.
+        pr=None
+        try:
+            pr=shell("gh","pr","create","--base","main","--head",branch,
+                     "--title","Company OS: Earnloop capability "+workstream[:12],
+                     "--body",body,timeout=90)
+        except RuntimeError as exc:
+            if "GitHub Actions is not permitted to create or approve pull requests" not in str(exc):
+                raise
+            print("GITHUB_PR_POLICY_DENIED_BRANCH_AND_TESTS_RETAINED")
+        if pr is not None and not re.fullmatch(r"https://github\.com/Noetfield-Systems/Earnloop/pull/[1-9][0-9]{0,8}",pr):
             raise RuntimeError("GITHUB_PR_NOT_CONFIRMED")
-        send("/report",{"workstream_id":workstream,"status":"PR_OPENED",
-              "source_sha":source_sha,"commit_sha":head_sha,"pr_url":pr},token)
+        delivery_state="PR_OPENED" if pr else "BRANCH_READY"
+        send("/report",{"workstream_id":workstream,"status":delivery_state,
+              "source_sha":source_sha,"commit_sha":head_sha,"pr_url":pr,
+              "branch_ref":branch},token)
         evidence={"schema":"sina.company-delivery.builder-evidence.v1",
                   "workstream_id":workstream,"task_id":claim["task_id"],
                   "project_id":"noetfield-earnloop","repo":REPO,
                   "source_sha":source_sha,"head_sha":head_sha,"pr_url":pr,
+                  "branch_ref":branch,
                   "module_path":module,"test_path":test,
                   "module_sha256":digest((ROOT/module).read_text()),
                   "test_sha256":digest((ROOT/test).read_text()),
                   "test_command":"npm run verify","test_result":"PASS",
                   "independently_verified":False,"deployed":False}
         (ROOT/"company-delivery-evidence.json").write_text(json.dumps(evidence,indent=2)+"\n")
-        step_output(state="OPENED",head_sha=head_sha,workstream=workstream)
-        print(json.dumps({"state":"PR_OPENED","pr_url":pr,"workstream_id":workstream,
+        step_output(state="OPENED" if pr else "BRANCH_READY",head_sha=head_sha,workstream=workstream)
+        print(json.dumps({"state":delivery_state,"pr_url":pr,"branch_ref":branch,"workstream_id":workstream,
                           "head_sha":head_sha,"independently_verified":False}))
     except Exception as exc:
         print(json.dumps({"state":"FAILED","stage":stage,"error_type":type(exc).__name__,
