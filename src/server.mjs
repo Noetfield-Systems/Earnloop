@@ -1,3 +1,6 @@
+import {setupMemberLoop,activity,memberJourney,claimChallenge,game} from './member-loop.mjs';
+import {setupEconomics,recordFinance,financeOverview} from './economics.mjs';
+import {opportunityOverview} from './company-os/opportunities.mjs';
 import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -78,6 +81,8 @@ async function init(){
    PRIMARY KEY(provider,event_id));
  CREATE INDEX IF NOT EXISTS earnloop_referrers_idx ON earnloop_members(referrer_id);`);
  await pool.query('ALTER TABLE earnloop_members ADD COLUMN IF NOT EXISTS checkin_streak INT NOT NULL DEFAULT 0 CHECK(checkin_streak>=0)');
+ await setupMemberLoop(pool);
+ await setupEconomics(pool);
  await setupCompanyOS(pool);
  await setupCommercial(pool);
 }
@@ -87,11 +92,15 @@ async function server(req,res){
   try{await pool.query('SELECT 1');return send(res,200,{ok:true,database:'connected',product:'earnloop',company_os:'dedicated',cash_payouts_enabled:false});}
   catch{return fail(res,503,'Database unavailable');}
  }
- const files={'/':'index.html','/privacy':'privacy.html','/terms':'terms.html','/company-os':'company-os.html','/style.css':'style.css','/premium.css':'premium.css','/app.js':'app.js','/experience.js':'experience.js','/company-os.js':'company-os.js'};
+ const files={'/':'index.html','/challenge':'index.html','/sponsor':'sponsor.html','/guide':'guide.html','/member-loop.js':'member-loop.js','/loop.css':'loop.css','/social.svg':'social.svg','/privacy':'privacy.html','/terms':'terms.html','/company-os':'company-os.html','/style.css':'style.css','/premium.css':'premium.css','/app.js':'app.js','/experience.js':'experience.js','/company-os.js':'company-os.js'};
  if(method==='GET'&&Object.hasOwn(files,route)){
-  const file=files[route],type=file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8';
+  const file=files[route],type=file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8';
   const raw=await fs.readFile(path.join(root,'public',file));return send(res,200,raw,type);
  }
+ if(method==='GET'&&route==='/robots.txt')return send(res,200,'User-agent: *\nAllow: /\nDisallow: /company-os\nDisallow: /api/\nSitemap: https://earnloop-web-production.up.railway.app/sitemap.xml','text/plain');
+ if(method==='GET'&&route==='/sitemap.xml')return send(res,200,'<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['/','/challenge','/guide','/sponsor'].map(p=>'<url><loc>https://earnloop-web-production.up.railway.app'+p+'</loc></url>').join('')+'</urlset>','application/xml');
+ if(method==='GET'&&route==='/api/journey'){const m=await member(req);if(!m)return fail(res,401,'Join first');return send(res,200,await memberJourney(pool,m));}
+ if(method==='GET'&&route==='/api/game'){const m=await member(req);if(!m)return fail(res,401,'Join first');return send(res,200,await game(pool,m));}
  if(method==='GET'&&route==='/api/offerwall/status')
   return send(res,200,{provider:'torox',enabled:toroxConfigured(),
    status:toroxConfigured()?'PUBLISHER_APPROVED_SESSION_AVAILABLE':'PUBLISHER_APPROVAL_REQUIRED',
@@ -101,6 +110,7 @@ async function server(req,res){
   if(!rate(req,10))return fail(res,429,'Rate limit exceeded');
   const m=await member(req);if(!m)return fail(res,401,'Join first');
   try{const wall_url=await createToroxWallSession(m.id);
+    await activity(pool,m.id,'offer_started','offerwall:'+crypto.randomUUID(),{provider:'torox'});
     return send(res,200,{wall_url,provider:'torox',payouts_enabled:false});}
   catch{return fail(res,502,'Partner session temporarily unavailable');}
  }
@@ -109,7 +119,7 @@ async function server(req,res){
   try{
    const e=parseToroxPostback(url);
    await pool.query(
-    'INSERT INTO earnloop_torox_postbacks(event_id,member_id,offer_id,amount_units,publisher_payout_reported_usd,reversal,status) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(provider,event_id) DO NOTHING',
+    `INSERT INTO earnloop_torox_postbacks(event_id,member_id,offer_id,amount_units,publisher_payout_reported_usd,reversal,status) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(provider,event_id) DO UPDATE SET reversal=TRUE,status='reversal_reported' WHERE EXCLUDED.reversal=TRUE AND earnloop_torox_postbacks.member_id=EXCLUDED.member_id AND earnloop_torox_postbacks.offer_id=EXCLUDED.offer_id`,
     [e.eventId,e.memberId,e.offerId,e.amountUnits,e.publisherPayoutReported,
      e.reversal,e.reversal?'reversal_reported':'reported_unsettled']);
    // Provider requires "1"; no source callback creates cash or user withdrawal credit.
@@ -130,6 +140,10 @@ async function server(req,res){
  }
  if(route.startsWith('/api/company-os/')){
   if(!admin(req)) return fail(res,401,'Administrator authorization required');
+  if(method==='GET'&&route==='/api/company-os/opportunities')return send(res,200,{candidates:await opportunityOverview(pool)});
+  if(method==='GET'&&route==='/api/company-os/finance')return send(res,200,await financeOverview(pool));
+  if(method==='GET'&&route==='/api/company-os/support')return send(res,200,{cases:(await pool.query('SELECT * FROM earnloop_support ORDER BY created_at DESC LIMIT 100')).rows,sponsor_leads:(await pool.query('SELECT * FROM earnloop_sponsor_leads ORDER BY created_at DESC LIMIT 100')).rows});
+  if(method==='POST'&&route==='/api/company-os/finance'){const {value}=await body(req);try{return send(res,201,await recordFinance(pool,value));}catch(e){return fail(res,400,e.message);}}
   if(method==='GET'&&route==='/api/company-os/commercial')return send(res,200,await listCommercial(pool));
   if(method==='POST'&&route.startsWith('/api/company-os/commercial/')){
    const operation=route.slice('/api/company-os/commercial/'.length);
@@ -158,18 +172,37 @@ async function server(req,res){
    const origin=req.headers.origin;if(origin && new URL(origin).host!==req.headers.host)return fail(res,403,'Origin mismatch');
    if(!rate(req))return fail(res,429,'Rate limit exceeded');
   }
+  if(route==='/api/sponsor'){
+   const {value}=await body(req);if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.email||'')||String(value.email).length>254||typeof value.brief!=='string'||value.brief.length<20||value.brief.length>2000||value.consent!==true)return fail(res,400,'Valid email, project brief and consent required');
+   const id=crypto.randomUUID();await pool.query('INSERT INTO earnloop_sponsor_leads(id,email,brief) VALUES($1,$2,$3)',[id,value.email,value.brief]);
+   await createWork(pool,{type:'draft_partner_outreach',objective:'Review inbound sponsor brief '+id,idempotency_key:'sponsor:'+id});return send(res,201,{id,message:'Inquiry saved. No payment or contract has been created.'});
+  }
+  if(['/api/challenge/claim','/api/game','/api/support'].includes(route)){
+   const m=await member(req);if(!m)return fail(res,401,'Join first');const {value}=await body(req);
+   try{
+    if(route==='/api/game')return send(res,200,await game(pool,m,value.answer));
+    if(route==='/api/challenge/claim')return send(res,200,await claimChallenge(pool,m));
+    if(typeof value.subject!=='string'||value.subject.length<5||value.subject.length>100||typeof value.message!=='string'||value.message.length<10||value.message.length>2000)return fail(res,400,'Add a subject and description (up to 2,000 characters)');
+    const id=crypto.randomUUID();await pool.query('INSERT INTO earnloop_support(id,member_id,subject,message) VALUES($1,$2,$3,$4)',[id,m.id,value.subject,value.message]);return send(res,201,{id,state:'open'});
+   }catch(e){return fail(res,400,e.message);}
+  }
   if(route==='/api/start'){
    const old=await member(req);if(old)return send(res,200,{member:{id:old.id,code:old.code,xp:old.xp}});
    const {value}=await body(req);const ref=String(value.ref||'').trim().toLowerCase().slice(0,30);
    const par=/^[a-f0-9]{12}$/.test(ref)?await pool.query('SELECT id FROM earnloop_members WHERE code=$1',[ref]):{rows:[]};
    const token=random(32),id=crypto.randomUUID(),code=random(6);
    await pool.query('INSERT INTO earnloop_members(id,token_hash,code,referrer_id) VALUES($1,$2,$3,$4)',[id,sha(token),code,par.rows[0]?.id||null]);
+   await activity(pool,id,'member_created','signup',{source:/^[a-zA-Z0-9_-]{1,40}$/.test(value.source||'')?value.source:(par.rows[0]?'referral':'direct')});
    return send(res,201,{member:{id,code,xp:0}},'application/json; charset=utf-8',{'set-cookie':`el_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=15552000`});
   }
   if(route==='/api/checkin'){
    const m=await member(req);if(!m)return fail(res,401,'Join first');
-   const r=await pool.query("UPDATE earnloop_members SET xp=xp+15,checkin_streak=CASE WHEN last_checkin=((NOW() AT TIME ZONE 'UTC')::DATE - 1) THEN checkin_streak+1 ELSE 1 END,last_checkin=(NOW() AT TIME ZONE 'UTC')::DATE WHERE id=$1 AND (last_checkin IS NULL OR last_checkin<(NOW() AT TIME ZONE 'UTC')::DATE) RETURNING xp,checkin_streak",[m.id]);
+   const c=await pool.connect();try{await c.query('BEGIN');
+   const r=await c.query("UPDATE earnloop_members SET xp=xp+15,checkin_streak=CASE WHEN last_checkin=((NOW() AT TIME ZONE 'UTC')::DATE - 1) THEN checkin_streak+1 ELSE 1 END,last_checkin=(NOW() AT TIME ZONE 'UTC')::DATE WHERE id=$1 AND (last_checkin IS NULL OR last_checkin<(NOW() AT TIME ZONE 'UTC')::DATE) RETURNING xp,checkin_streak,last_checkin",[m.id]);
+   if(r.rowCount)await activity(c,m.id,'daily_checkin','checkin:'+new Date(r.rows[0].last_checkin).toISOString().slice(0,10),{xp:15});
+   await c.query('COMMIT');
    return send(res,200,r.rowCount?{awarded:true,xp:r.rows[0].xp,streak:r.rows[0].checkin_streak,earned_xp:15}:{awarded:false,xp:m.xp,streak:m.checkin_streak,message:'Already checked in today'});
+   }catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
   }
   if(route==='/api/join'){
    const {value}=await body(req),email=String(value.email||'').trim().toLowerCase();
@@ -201,10 +234,10 @@ async function operationsTick(){
  if(loopRunning)return; loopRunning=true;
  try {
   const day=new Date().toISOString().slice(0,10);
-  for (const type of ['snapshot_metrics','audit_partner_events','growth_diagnosis','replication_launch_check']) {
+  for (const type of ['discover_opportunities','snapshot_metrics','audit_partner_events','growth_diagnosis','replication_launch_check']) {
    await createWork(pool,{type,objective:`Daily evidence-backed ${type.replaceAll('_',' ')} for ${day}`,idempotency_key:`daily:${day}:${type}`});
   }
-  for(let i=0;i<4;i++){const result=await runOne(pool);if(!result)break;}
+  for(let i=0;i<8;i++){const result=await runOne(pool);if(!result)break;}
  }catch(err){console.error('company_os_tick_failure',err.message);}finally{loopRunning=false;}
 }
 const serverHandle=http.createServer((req,res)=>{Promise.resolve(server(req,res)).catch(err=>{console.error('request_failure',err.message);if(!res.headersSent)fail(res,err.status||500,err.status?err.message:'Unexpected server error');else res.end();});});

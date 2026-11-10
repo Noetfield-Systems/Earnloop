@@ -13,6 +13,21 @@ jobs:
           node-version: '22'
       - run: npm install
       - run: npm run verify
+      - name: Install browser for changed member journeys
+        run: npx playwright install --with-deps chromium
+      - name: Exercise isolated mobile member and sponsor journeys
+        run: |
+          node --import ./tests/fixtures/local-db.mjs src/server.mjs > /tmp/earnloop-test-server.log 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:3100/health && break || sleep 1; done
+          node scripts/browser-check.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: member-journey-browser-evidence
+          path: test-results/
+          if-no-files-found: ignore
   smoke-production:
     needs: [test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

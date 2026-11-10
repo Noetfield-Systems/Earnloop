@@ -34,3 +34,5 @@ export function nextCommercialAction(facts={},env={}) {
  return result(0,'revenue','torox','reconcile_collected_cash_and_funded_reward','Require independently matched provider remittance, bank receipt, legitimate reward fulfillment, reversal reserve and net positive contribution. A future audited receipt-backed ledger is needed before automation can advance');
 
 }
+
+export {scoreOpportunity,discover,opportunityOverview} from './opportunities.mjs';

@@ -21,7 +21,7 @@ async function refresh(){
  }catch(e){message('Connection unavailable: '+e.message);}
 }
 async function enroll(){
- try{const url=new URL(location.href),ref=url.searchParams.get('ref')||'';const r=await api('/api/start',{method:'POST',body:JSON.stringify({ref})});me=r.member;message('Explorer membership activated. Welcome to the loop!');await refresh();document.getElementById('quests').scrollIntoView({behavior:'smooth'});}
+ try{const url=new URL(location.href),ref=url.searchParams.get('ref')||'';const r=await api('/api/start',{method:'POST',body:JSON.stringify({ref,source:new URL(location.href).searchParams.get('utm_source')||''})});me=r.member;message('Explorer membership activated. Welcome to the loop!');await refresh();document.getElementById('quests').scrollIntoView({behavior:'smooth'});}
  catch(e){message(e.message);}
 }
 async function startOfferwall(){

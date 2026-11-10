@@ -1,9 +1,12 @@
+import {setupOpportunities,discover,opportunityOverview} from './opportunities.mjs';
+import {publishCampaign,growthMetrics} from '../member-loop.mjs';
 import {nextCommercialAction} from './replication.mjs';
 import {canTransition,summarizeWork} from './generated/feature_41dabf588aa9.mjs';
 import crypto from 'node:crypto';
 import {TASKS, validatePacket,canRun} from './policy.mjs';
 const sha = v=>crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
 export async function setupCompanyOS(pool) {
+ await setupOpportunities(pool);
  await pool.query(`
  CREATE TABLE IF NOT EXISTS earnloop_os_work (
    id UUID PRIMARY KEY, idempotency_key TEXT NOT NULL UNIQUE, type TEXT NOT NULL, objective TEXT NOT NULL,
@@ -16,6 +19,9 @@ export async function setupCompanyOS(pool) {
    result JSONB NOT NULL, result_hash TEXT NOT NULL, verification TEXT NOT NULL,
    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
  );
+ ALTER TABLE earnloop_os_work ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;
+ ALTER TABLE earnloop_os_work ADD COLUMN IF NOT EXISTS available_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ ALTER TABLE earnloop_os_work ADD COLUMN IF NOT EXISTS last_error TEXT;
  CREATE INDEX IF NOT EXISTS earnloop_os_work_state_idx ON earnloop_os_work(state,created_at);
  `);
 }
@@ -55,31 +61,50 @@ export function evaluate(type, facts) {
  }
 }
 export async function runOne(pool) {
+ await pool.query("UPDATE earnloop_os_work SET state=CASE WHEN attempts<3 THEN 'queued' ELSE 'blocked' END,available_at=NOW(),last_error='lease_expired' WHERE state='running' AND updated_at<NOW()-INTERVAL '10 minutes'");
  const client=await pool.connect(); let row;
  try {
    await client.query('BEGIN');
-   const r=await client.query("SELECT * FROM earnloop_os_work WHERE state='queued' ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED");
+   const r=await client.query("SELECT * FROM earnloop_os_work WHERE state='queued' AND available_at<=NOW() ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED");
    row=r.rows[0];
    if(!row) {await client.query('COMMIT');return null;}
    if(!canTransition(row.state,'running')) throw new Error('ILLEGAL_WORK_STATE_TRANSITION');
    if(!canRun(row)) {await client.query("UPDATE earnloop_os_work SET state='blocked', updated_at=NOW() WHERE id=$1",[row.id]);await client.query('COMMIT');return {id:row.id,state:'blocked'};}
-   await client.query("UPDATE earnloop_os_work SET state='running',updated_at=NOW() WHERE id=$1",[row.id]);
+   await client.query("UPDATE earnloop_os_work SET state='running',attempts=attempts+1,updated_at=NOW() WHERE id=$1",[row.id]);
    await client.query('COMMIT');
  } catch(err){await client.query('ROLLBACK');throw err;} finally {client.release();}
  try {
-   const facts=await metrics(pool); const result=evaluate(row.type,facts),digest=sha(result);
+   const facts=await metrics(pool); const result=row.type==='discover_opportunities'?await discover(pool):row.type==='publish_growth_campaign'?await publishCampaign(pool):evaluate(row.type,facts);
+   if(row.type==='discover_opportunities'){
+    const selected=result.candidates.filter(x=>x.ranking.feasible).sort((a,b)=>b.ranking.score-a.ranking.score)[0];
+    if(selected){const next=await createWork(pool,{type:selected.next_workpacket,objective:'Execute permitted next action for '+selected.candidate_id,idempotency_key:'opportunity:'+selected.candidate_id+':'+new Date().toISOString().slice(0,10)});result.next_work_id=next.id;result.selected=selected.candidate_id;}
+    await createWork(pool,{type:'draft_partner_outreach',objective:'Prepare supplier and direct sponsor outreach from current product facts',idempotency_key:'commercial:'+new Date().toISOString().slice(0,10)});
+   }
+   if(row.type==='publish_growth_campaign')await createWork(pool,{type:'growth_diagnosis',objective:'Measure founding campaign activation and return activity',idempotency_key:'measure:'+new Date().toISOString().slice(0,10)});
+   if(row.type==='growth_diagnosis')result.events=await growthMetrics(pool);
+   if(row.type==='draft_partner_outreach'){
+    result.actual_metrics=facts;
+    result.inbound_sponsors=(await pool.query("SELECT id,brief,state FROM earnloop_sponsor_leads WHERE state='new' ORDER BY created_at LIMIT 10")).rows;
+    result.prepared_targets=(await pool.query('SELECT key,state FROM earnloop_os_commercial')).rows;
+    result.message+=' Current registered members: '+facts.members+'. Activated members: '+facts.activated+'. Proposed sponsor deliverable: one original promotional page and a disclosed placement; fixed fee to be agreed. No audience or sales guarantee.';
+   }
+   const prior=await pool.query('SELECT result FROM earnloop_os_receipts r JOIN earnloop_os_work w ON w.id=r.work_id WHERE w.type=$1 ORDER BY r.created_at DESC LIMIT 1',[row.type]);
+   if(prior.rows[0])result.stalled=JSON.stringify(prior.rows[0].result.actual_metrics??prior.rows[0].result.facts)===JSON.stringify(result.actual_metrics??result.facts)&&['snapshot_metrics','draft_partner_outreach'].includes(row.type);
+   result.completion_state=result.completion_state||'implemented';
+   result.commercially_verified=false;
+   const digest=sha(result);
    const verify=digest===sha(JSON.parse(JSON.stringify(result)))?'local_consistency_checked':'failed';
    const c=await pool.connect();
    try{await c.query('BEGIN');await c.query('INSERT INTO earnloop_os_receipts(id,work_id,result,result_hash,verification) VALUES($1,$2,$3,$4,$5) ON CONFLICT(work_id) DO NOTHING',[crypto.randomUUID(),row.id,JSON.stringify(result),digest,verify]);await c.query("UPDATE earnloop_os_work SET state='completed',updated_at=NOW() WHERE id=$1",[row.id]);await c.query('COMMIT');}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
    return {id:row.id,type:row.type,state:'completed',receipt_hash:digest,verification:verify};
  } catch(err) {
-   await pool.query("UPDATE earnloop_os_work SET state='blocked',updated_at=NOW() WHERE id=$1",[row.id]);
-   return {id:row.id,state:'blocked',reason:'Execution failed; inspect server logs'};
+   const retry=await pool.query("UPDATE earnloop_os_work SET state=CASE WHEN attempts<3 THEN 'queued' ELSE 'blocked' END,available_at=NOW()+make_interval(secs=>LEAST(3600,60*power(2,attempts)::int)),last_error=$2,updated_at=NOW() WHERE id=$1 RETURNING state,available_at",[row.id,String(err.message).slice(0,300)]);
+   return {id:row.id,state:retry.rows[0].state,retry_at:retry.rows[0].available_at,reason:'Execution failed; bounded retry or operator review'};
  }
 }
 export async function overview(pool) {
  const k=await metrics(pool);
  const w=await pool.query('SELECT id,type,objective,owner,authority,risk,state,created_at,updated_at FROM earnloop_os_work ORDER BY created_at DESC LIMIT 40');
  const r=await pool.query('SELECT work_id,result_hash,verification,created_at FROM earnloop_os_receipts ORDER BY created_at DESC LIMIT 20');
- return {product:'earnloop',company_os:'dedicated',kpis:k,work:w.rows,work_state_summary:summarizeWork(w.rows),receipts:r.rows,paid_partners_configured:!!(process.env.PARTNER_NAME&&process.env.PARTNER_POSTBACK_SECRET),payouts_enabled:false};
+ return {opportunities:await opportunityOverview(pool),growth_events:await growthMetrics(pool),product:'earnloop',company_os:'dedicated',kpis:k,work:w.rows,work_state_summary:summarizeWork(w.rows),receipts:r.rows,paid_partners_configured:!!(process.env.PARTNER_NAME&&process.env.PARTNER_POSTBACK_SECRET),payouts_enabled:false};
 }

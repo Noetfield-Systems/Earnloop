@@ -9,6 +9,8 @@ export const ROLES = Object.freeze({
   verifier: 'Evidence review and receipt consistency'
 });
 export const TASKS = Object.freeze({
+  discover_opportunities: {role:'ceo',authority:'auto',risk:'read_only',purpose:'Refresh public source evidence and rank executable opportunities'},
+  publish_growth_campaign: {role:'growth',authority:'auto',risk:'draft_only',purpose:'Activate founder-authorized noncash seven-day campaign'},
   snapshot_metrics: {role:'revenue', authority:'auto', risk:'read_only', purpose:'Evidence-backed business KPI snapshot'},
   audit_partner_events: {role:'trust', authority:'auto', risk:'read_only', purpose:'Inspect reported/settled/reversed events without paying anyone'},
   growth_diagnosis: {role:'growth', authority:'auto', risk:'read_only', purpose:'Inspect actual activation and referral funnel'},
@@ -29,3 +31,5 @@ export function validatePacket(p) {
 export function canRun(packet) {
   return TASKS[packet.type]?.authority==='auto' && ['read_only','draft_only'].includes(TASKS[packet.type].risk);
 }
+
+export const OPPORTUNITY_POLICY=Object.freeze({weights:{speed:20,profit:20,capital:15,demand:10,reuse:10,acquisition:10,retention:5,automation:5,simplicity:5},uncertainty_penalty:20,stale_penalty:15,max_evidence_age_days:7,max_action_budget_minor:0});
