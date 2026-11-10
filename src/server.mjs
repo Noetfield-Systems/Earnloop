@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import pg from 'pg';
 import {setupCompanyOS,createWork,runOne,overview,metrics} from './company-os/engine.mjs';
 import {ROLES,TASKS} from './company-os/policy.mjs';
+import {toroxConfigured,createToroxWallSession,parseToroxPostback} from './torox.mjs';
 
 const PORT=Number(process.env.PORT||3000);
 if(!process.env.DATABASE_URL) throw Error('DATABASE_URL required: refusing ephemeral member storage');
@@ -57,6 +58,14 @@ async function init(){
    gross_cents INT NOT NULL CHECK(gross_cents>=0),reward_cents INT NOT NULL CHECK(reward_cents>=0),
    status TEXT NOT NULL DEFAULT 'reported' CHECK(status IN ('reported','reversed','settled')),
    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),UNIQUE(provider,event_id));
+ CREATE TABLE IF NOT EXISTS earnloop_torox_postbacks(
+   provider TEXT NOT NULL DEFAULT 'torox',event_id TEXT NOT NULL,
+   member_id UUID NOT NULL REFERENCES earnloop_members(id),offer_id TEXT NOT NULL,
+   amount_units NUMERIC(18,8) NOT NULL,publisher_payout_reported_usd NUMERIC(18,8) NOT NULL,
+   reversal BOOLEAN NOT NULL DEFAULT FALSE,
+   status TEXT NOT NULL DEFAULT 'reported_unsettled' CHECK(status IN ('reported_unsettled','reversal_reported','reviewed')),
+   received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+   PRIMARY KEY(provider,event_id));
  CREATE INDEX IF NOT EXISTS earnloop_referrers_idx ON earnloop_members(referrer_id);`);
  await setupCompanyOS(pool);
 }
@@ -71,8 +80,32 @@ async function server(req,res){
   const file=files[route],type=file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':'text/html; charset=utf-8';
   const raw=await fs.readFile(path.join(root,'public',file));return send(res,200,raw,type);
  }
+ if(method==='GET'&&route==='/api/offerwall/status')
+  return send(res,200,{provider:'torox',enabled:toroxConfigured(),
+   status:toroxConfigured()?'PUBLISHER_APPROVED_SESSION_AVAILABLE':'PUBLISHER_APPROVAL_REQUIRED',
+   payouts_enabled:false,source_reports_are_collected_revenue:false});
+ if(method==='GET'&&route==='/api/offerwall/session'){
+  if(!toroxConfigured())return fail(res,503,'Publisher approval pending');
+  if(!rate(req,10))return fail(res,429,'Rate limit exceeded');
+  const m=await member(req);if(!m)return fail(res,401,'Join first');
+  try{const wall_url=await createToroxWallSession(m.id);
+    return send(res,200,{wall_url,provider:'torox',payouts_enabled:false});}
+  catch{return fail(res,502,'Partner session temporarily unavailable');}
+ }
+ if(method==='GET'&&route==='/api/partner/torox/postback'){
+  if(!toroxConfigured())return send(res,503,'0','text/plain; charset=utf-8');
+  try{
+   const e=parseToroxPostback(url);
+   await pool.query(
+    'INSERT INTO earnloop_torox_postbacks(event_id,member_id,offer_id,amount_units,publisher_payout_reported_usd,reversal,status) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(provider,event_id) DO NOTHING',
+    [e.eventId,e.memberId,e.offerId,e.amountUnits,e.publisherPayoutReported,
+     e.reversal,e.reversal?'reversal_reported':'reported_unsettled']);
+   // Provider requires "1"; no source callback creates cash or user withdrawal credit.
+   return send(res,200,'1','text/plain; charset=utf-8');
+  }catch{return send(res,400,'0','text/plain; charset=utf-8');}
+ }
  if(method==='GET'&&route==='/api/stats'){
-  const m=await metrics(pool);return send(res,200,{members:m.members,early_access:m.waitlist,community_xp:m.community_xp,settled_events:m.settled_events,offerwall_status:process.env.APPROVED_OFFERWALL_URL?'partner_configured':'partner_pending',cash_payouts_enabled:false});
+  const m=await metrics(pool);return send(res,200,{members:m.members,early_access:m.waitlist,community_xp:m.community_xp,settled_events:m.settled_events,offerwall_status:toroxConfigured()?'publisher_approved':'publisher_pending',cash_payouts_enabled:false});
  }
  if(method==='GET'&&route==='/api/leaderboard'){
   const r=await pool.query('SELECT code,xp FROM earnloop_members WHERE xp>0 ORDER BY xp DESC,created_at ASC LIMIT 10');
