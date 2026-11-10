@@ -1,6 +1,6 @@
 # SINA / COMPANY OS — EXACT EXECUTION ORDER: EARNLOOP PROVEN-MODEL REPLICATION
 
-Date: 2026-11-09 (Vancouver). Scope: existing project Noetfield-Systems/Earnloop. This is subordinate to integrations/founder-brain/FOUNDER-CONTEXT-PROFILE-v1.md, section 2A. Do not create a second Founder Goal, Company OS, task registry, company entity, or scheduler.
+Date: 2026-11-09 (Vancouver). Scope: existing project Noetfield-Systems/Earnloop. This is subordinate to https://github.com/Noetfield-Systems/sina_founder_os/blob/main/integrations/founder-brain/FOUNDER-CONTEXT-PROFILE-v1.md, section 2A. Do not create a second Founder Goal, Company OS, task registry, company entity, or scheduler.
 
 ## REASON
 
