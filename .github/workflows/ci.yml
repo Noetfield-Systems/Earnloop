@@ -13,3 +13,14 @@ jobs:
           node-version: '22'
       - run: npm install
       - run: npm run verify
+  smoke-production:
+    needs: [test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify live Earnloop HTTP routes and fail-closed money gates
+        run: node scripts/smoke-public.mjs
