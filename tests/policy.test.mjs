@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {ROLES,TASKS,validatePacket,canRun} from '../src/company-os/policy.mjs';
+import {evaluate} from '../src/company-os/engine.mjs';
+test('dedicated product roles and whitelisted work',()=>{assert.equal(Object.keys(ROLES).length,8);assert.ok(TASKS.snapshot_metrics)});
+test('safe metrics can run',()=>{const p=validatePacket({type:'snapshot_metrics',objective:'Capture actual business indicators',idempotency_key:'metrics-20261109'});assert.equal(p.owner,'revenue');assert.ok(canRun(p));});
+test('payouts cannot be executed',()=>{const p=validatePacket({type:'authorize_reward_payout',objective:'Pay funded advertiser rewards',idempotency_key:'payout-20261109'});assert.equal(p.authority,'founder');assert.equal(canRun(p),false);});
+test('unknown types and malformed packets fail closed',()=>{assert.throws(()=>validatePacket({type:'send_money',objective:'Send cash to everybody',idempotency_key:'abc123456'}));assert.throws(()=>validatePacket({type:'snapshot_metrics',objective:'x',idempotency_key:'abc123456'}));});
+test('no simulated cash in diagnoses',()=>{const facts={members:0,activated:0,referrals:0,reported_events:0,settled_events:0};const d=evaluate('growth_diagnosis',facts);assert.equal(d.activation_rate,null);assert.equal(d.money_moved,false);const a=evaluate('audit_partner_events',facts);assert.equal(a.money_moved,false);});
+test('draft outreach never sends',()=>{const p=evaluate('draft_partner_outreach',{});assert.equal(p.sent,false);});

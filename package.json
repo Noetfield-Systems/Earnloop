@@ -1,0 +1,14 @@
+{
+  "name": "earnloop-product",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22"},
+  "scripts": {
+    "start": "node src/server.mjs",
+    "check": "node --check src/server.mjs && node --check src/company-os/engine.mjs && node --check public/app.js",
+    "test": "node --test tests/*.test.mjs",
+    "verify": "npm run check && npm test"
+  },
+  "dependencies": {"pg": "^8.13.1"}
+}
