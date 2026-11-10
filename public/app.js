@@ -14,6 +14,7 @@ async function refresh(){
   $('memberCount').textContent=number(stats.members);$('waitlistCount').textContent=number(stats.early_access);
   me=identity.member;$('myXp').textContent=number(me?.xp);$('myReferrals').textContent=number(me?.unverified_invites);$('memberStatus').textContent=me?'FOUNDING MEMBER':'NOT JOINED';
   if(me)message('Your invite code: '+me.code+' · Non-cash XP only');
+  document.dispatchEvent(new CustomEvent('earnloop:updated',{detail:{member:me,stats}}));
   const list=$('leaders');list.replaceChildren();
   if(!board.leaders.length){const el=document.createElement('div');el.className='empty';el.textContent='Be the first real explorer on the board.';list.append(el);}
   else board.leaders.forEach((p,i)=>{const item=document.createElement('div');item.className='leader';const rank=document.createElement('span');rank.textContent=String(i+1).padStart(2,'0');const name=document.createElement('strong');name.textContent=p.name;const xp=document.createElement('b');xp.textContent=number(p.xp)+' XP';item.append(rank,name,xp);list.append(item);});
@@ -40,4 +41,5 @@ $('navJoin').addEventListener('click',enroll);$('joinHero').addEventListener('cl
 $('checkin').addEventListener('click',async()=>{try{if(!me){await enroll();}const r=await api('/api/checkin',{method:'POST',body:'{}'});message(r.awarded?'You earned 15 community XP today.':'You already checked in today.');await refresh();}catch(e){message(e.message);}});
 $('copyInvite').addEventListener('click',async()=>{try{if(!me)await enroll();if(!me)return;const url=new URL(location.origin);url.searchParams.set('ref',me.code);await navigator.clipboard.writeText(url.href);message('Your invite link has been copied.');}catch(e){message('Unable to copy: '+e.message);}});
 $('waitlist').addEventListener('submit',async(e)=>{e.preventDefault();const button=e.currentTarget.querySelector('button');button.disabled=true;try{const v=await api('/api/join',{method:'POST',body:JSON.stringify({email:$('email').value,consent:$('consent').checked,website:e.currentTarget.elements.website.value})});$('formMessage').textContent=v.message||'Thanks for joining!';await refresh();}catch(err){$('formMessage').textContent=err.message;}finally{button.disabled=false;}});
+window.Earnloop={member:()=>me,enroll,refresh};
 refresh();
