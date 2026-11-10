@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import pg from 'pg';
 import {setupCompanyOS,createWork,runOne,overview,metrics} from './company-os/engine.mjs';
 import {ROLES,TASKS} from './company-os/policy.mjs';
+import {setupCommercial,listCommercial,approveCommercial,configureContact,dispatchCommercial,recordCommercialEvidence} from './company-os/commercial.mjs';
 import {REPLICATION_TARGETS,nextCommercialAction} from './company-os/replication.mjs';
 import {toroxConfigured,createToroxWallSession,parseToroxPostback} from './torox.mjs';
 
@@ -31,6 +32,14 @@ function admin(req){
  if(!provided) return false;
  const a=crypto.createHash('sha256').update(provided).digest(),b=crypto.createHash('sha256').update(key).digest();
  return crypto.timingSafeEqual(a,b);
+}
+function founderApproval(req){
+ const key=process.env.COMMERCIAL_FOUNDER_APPROVAL_TOKEN;
+ const supplied=String(req.headers['x-founder-approval-token']||'');
+ if(!key||key.length<32||!supplied)return false;
+ const left=crypto.createHash('sha256').update(supplied).digest();
+ const right=crypto.createHash('sha256').update(key).digest();
+ return crypto.timingSafeEqual(left,right);
 }
 function cookie(req){const m=/(?:^|;\s*)el_session=([a-f0-9]{64})(?:;|$)/.exec(req.headers.cookie||'');return m?.[1]||null;}
 function rate(req,max=25){
@@ -69,6 +78,7 @@ async function init(){
    PRIMARY KEY(provider,event_id));
  CREATE INDEX IF NOT EXISTS earnloop_referrers_idx ON earnloop_members(referrer_id);`);
  await setupCompanyOS(pool);
+ await setupCommercial(pool);
 }
 async function server(req,res){
  const url=new URL(req.url||'/', 'https://localhost');const route=url.pathname,method=req.method||'GET';
@@ -119,6 +129,21 @@ async function server(req,res){
  }
  if(route.startsWith('/api/company-os/')){
   if(!admin(req)) return fail(res,401,'Administrator authorization required');
+  if(method==='GET'&&route==='/api/company-os/commercial')return send(res,200,await listCommercial(pool));
+  if(method==='POST'&&route.startsWith('/api/company-os/commercial/')){
+   const operation=route.slice('/api/company-os/commercial/'.length);
+   if(!['approve','send','contact','evidence'].includes(operation))return fail(res,404,'Unknown commercial operation');
+   if((operation==='approve'||operation==='contact')&&!founderApproval(req))return fail(res,403,'Separate founder approval required');
+   const {value}=await body(req);
+   try{
+    let result;
+    if(operation==='approve')result=await approveCommercial(pool,String(value.key||''));
+    if(operation==='contact')result=await configureContact(pool,String(value.key||''),String(value.email||''),String(value.source||''));
+    if(operation==='send')result=await dispatchCommercial(pool,String(value.key||''));
+    if(operation==='evidence')result=await recordCommercialEvidence(pool,String(value.key||''),String(value.kind||''),String(value.reference||''));
+    return send(res,200,{commercial:result});
+   }catch(e){return fail(res,400,e.message);}
+  }
   if(method==='GET'&&route==='/api/company-os/replication') return send(res,200,{targets:REPLICATION_TARGETS,next_action:nextCommercialAction(await metrics(pool),process.env)});
   if(method==='GET'&&route==='/api/company-os/overview')return send(res,200,{...await overview(pool),roles:ROLES,allowed_work:TASKS});
   if(method==='POST'&&route==='/api/company-os/work'){
