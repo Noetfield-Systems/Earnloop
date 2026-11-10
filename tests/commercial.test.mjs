@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {COMMERCIAL_TARGETS, fingerprint, configuredForDispatch, submitEmail} from '../src/company-os/commercial.mjs';
 const env = {RESEND_API_KEY:'TEST_ONLY_NO_REAL_CREDENTIAL_987654321',OUTREACH_FROM:'operations@noetfield.com',OUTREACH_ALLOWED_RECIPIENTS:'support@ayetstudios.com'};
 test('publisher signups and no fabricated sponsor address',()=>{
- assert.equal(COMMERCIAL_TARGETS.length,3);
+ assert.equal(COMMERCIAL_TARGETS.length,4);
  assert.equal(COMMERCIAL_TARGETS[0].portal_url,'https://torox.io/register/');
  assert.equal(COMMERCIAL_TARGETS[2].to_email,null);
 });

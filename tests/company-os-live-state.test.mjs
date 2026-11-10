@@ -22,6 +22,7 @@ test('live Company OS overview exposes real, source-derived work-state metrics',
       if (sql.includes('FROM earnloop_os_receipts ORDER BY')) {
         return { rows: [] };
       }
+      if (sql.includes('earnloop_os_opportunities') || sql.includes('earnloop_activity')) return {rows:[]};
       throw new Error('Unexpected database query');
     }
   };
