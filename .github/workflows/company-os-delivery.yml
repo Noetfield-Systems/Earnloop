@@ -13,7 +13,8 @@ concurrency:
 
 jobs:
   candidate:
-    if: ${{ github.event_name != 'issues' || (github.event.issue.title == 'SINA: Run Company OS Delivery' && github.event.issue.user.login == 'kazemnezhadsina144-dot') }}
+    if: >-
+      ${{ github.event_name != 'issues' || (github.event.issue.title == 'SINA: Run Company OS Delivery' && github.event.issue.user.login == 'kazemnezhadsina144-dot') }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
