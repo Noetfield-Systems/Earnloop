@@ -55,6 +55,21 @@ def main():
     shell("npm","run","verify")
     if shell("git","status","--porcelain"):
         raise RuntimeError("READBACK_DIRTY_CHECKOUT")
+    # The SAME versioned Company OS outcome gate is executed by BOTH products.
+    # The result is deliberately claim-shape-ready, NOT an independently
+    # signed receipt or permission to release or move customer funds.
+    gate=subprocess.run(
+        ["node","scripts/company-os-receipt-gate.mjs"],
+        cwd=ROOT,input=json.dumps(evidence),capture_output=True,
+        text=True,timeout=15)
+    if gate.returncode:
+        raise RuntimeError("PORTABLE_COMPANY_OS_EVIDENCE_GATE_REJECTED")
+    assessment=json.loads(gate.stdout)
+    if (assessment.get("state")!="RECEIPT_CLAIM_READY_FOR_INDEPENDENT_VERIFIER"
+            or assessment.get("independent_completion_verified") is not False
+            or assessment.get("commercial_outcome_verified") is not False
+            or assessment.get("next_action")!="VERIFY_RECEIPT_SIGNATURE_AND_PROVENANCE"):
+        raise RuntimeError("EVIDENCE_GATE_ATTEMPTED_TO_SELF_CERTIFY")
     token=authorize()
     request=urllib.request.Request(API+"/report", method="POST",
        data=json.dumps({
@@ -75,7 +90,9 @@ def main():
         "sha":expected,
         "checks":["fresh_git_checkout","exact_head_sha","artifact_hashes","full_application_tests"],
         "production_deployed":False,
-        "business_outcome_independently_verified":False
+        "business_outcome_independently_verified":False,
+        "company_os_outcome_gate":assessment["schema"],
+        "company_os_next_action":assessment["next_action"]
     }, sort_keys=True))
 
 if __name__=="__main__":
