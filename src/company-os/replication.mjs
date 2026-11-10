@@ -22,10 +22,15 @@ export function nextCommercialAction(facts={},env={}) {
  const result=(priority,owner,source,action,evidence)=>({priority,owner,source,action,evidence,money_moved:false,external_action_executed:false});
  if(!approved) return result(0,'partnerships','torox','obtain_publisher_acceptance','Written Torox contract, approval reference and eligible Canadian web offer inventory');
  if(!credentials) return result(0,'engineering','torox','configure_publisher_placement_privately','Verified private Railway variable names and registered partner source');
- if(env.TOROX_POSTBACK_VERIFIED!=='true') return result(0,'trust','torox','verify_real_partner_callbacks_and_reversals','Provider test postback, idempotency, chargeback handling, fraud and financial reconciliations; legacy MD5 cannot authorize money');
- if(Number(facts.settled_events||0)===0) return result(0,'revenue','torox','obtain_first_confirmed_funded_conversion','Partner dashboard + independent cleared bank statement + costed real user reward');
- if(Number(facts.members||0)<20) return result(1,'growth','zealy','acquire_20_real_members','Consented real users, tracked organic channels and initial activation cohort');
- const activation=Number(facts.activated||0)/Math.max(1,Number(facts.members||0));
- if(activation<.3) return result(1,'growth','zealy','raise_quest_activation','30% first-session activation on non-synthetic members');
- return result(2,'revenue','torox','improve_verified_contribution_and_repeat_use','Actual collected margin net of provider fees, reversals, funded rewards and user support');
+ if(env.TOROX_POSTBACK_VERIFIED!=='true') return result(0,'trust','torox','verify_real_partner_callbacks_and_reversals','Provider-supplied callback and reversal evidence, idempotency and fraud review; an environment flag or legacy MD5 signature is not proof of cash or permission to reward');
+ // At least one real member is necessary to generate a valid attributed action.
+ // Noncash acquisition can run concurrently with commercial onboarding.
+ if(Number(facts.members||0)<1) return result(0,'growth','zealy','acquire_first_real_eligible_member','Consenting non-synthetic member in an actually eligible geography; noncash sign-up and tracked referral only');
+ if(Number(facts.settled_events||0)===0) return result(0,'revenue','torox','obtain_first_partner_verified_payable_action','Real member, eligible tracked offer, provider-approved conversion and applicable hold/reversal policy; not collected revenue');
+ // A database row labelled "settled" does NOT establish that the bank received
+ // funds, that a user reward was fulfilled, or that contribution is positive.
+ // The current metrics() query supplies no independent payment and fulfillment
+ // receipts. Fail closed instead of promoting the mission to Growth on counts.
+ return result(0,'revenue','torox','reconcile_collected_cash_and_funded_reward','Require independently matched provider remittance, bank receipt, legitimate reward fulfillment, reversal reserve and net positive contribution. A future audited receipt-backed ledger is needed before automation can advance');
+
 }
