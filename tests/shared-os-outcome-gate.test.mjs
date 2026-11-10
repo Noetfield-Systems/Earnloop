@@ -1,4 +1,5 @@
 import test from 'node:test';
+import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import {assessCompanyOutcome, COMPANY_OS_EVIDENCE_GATE_VERSION as VERSION} from '../src/company-os/shared-evidence-gate.mjs';
 const record={
@@ -31,4 +32,12 @@ test('cash is not called collected without valid settlement shape or a verifier'
  assert.equal(reported.commercial_claim_shape_consistent,true);
  assert.equal(reported.commercial_outcome_verified,false);
  assert.equal(reported.independent_completion_verified,false);
+});
+test('Earnloop routes the reusable gate through its existing scoped Company OS authority',()=>{
+ const code=fs.readFileSync(new URL('../src/server.mjs',import.meta.url),'utf8');
+ const parent=code.indexOf("if(route.startsWith('/api/company-os/'))");
+ const credential=code.indexOf("if(!admin(req))",parent);
+ const gate=code.indexOf("route==='/api/company-os/evidence-gate'",parent);
+ assert.ok(parent>=0&&credential>parent&&gate>credential);
+ assert.ok(code.includes('assessCompanyOutcome(value)'));
 });
