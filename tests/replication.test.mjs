@@ -14,6 +14,9 @@ test('commercial engine prioritizes real acceptance and cash before user growth'
  assert.equal(nextCommercialAction({},accepted).action,'configure_publisher_placement_privately');
  const ready={...accepted,TOROX_PLACEMENT_ID:'source',TOROX_APP_TOKEN:'private',TOROX_MODE:'staging'};
  assert.equal(nextCommercialAction({},ready).action,'verify_real_partner_callbacks_and_reversals');
- assert.equal(nextCommercialAction({settled_events:0},{...ready,TOROX_POSTBACK_VERIFIED:'true'}).action,'obtain_first_confirmed_funded_conversion');
- assert.equal(nextCommercialAction({settled_events:1,members:3},{...ready,TOROX_POSTBACK_VERIFIED:'true'}).action,'acquire_20_real_members');
+ assert.equal(nextCommercialAction({members:0},{...ready,TOROX_POSTBACK_VERIFIED:'true'}).action,'acquire_first_real_eligible_member');
+ assert.equal(nextCommercialAction({settled_events:0,members:1},{...ready,TOROX_POSTBACK_VERIFIED:'true'}).action,'obtain_first_partner_verified_payable_action');
+ assert.equal(nextCommercialAction({settled_events:1,members:3},{...ready,TOROX_POSTBACK_VERIFIED:'true'}).action,'reconcile_collected_cash_and_funded_reward');
+ assert.equal(nextCommercialAction({settled_events:400,members:100000,activated:60000},{...ready,TOROX_POSTBACK_VERIFIED:'true'}).action,'reconcile_collected_cash_and_funded_reward');
+ assert.equal(nextCommercialAction({settled_events:1,members:3,claimed_profit:999999},{...ready,TOROX_POSTBACK_VERIFIED:'true'}).external_action_executed,false);
 });
