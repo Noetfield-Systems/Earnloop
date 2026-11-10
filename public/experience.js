@@ -24,7 +24,10 @@
     const next=150-step;
     const streak=Number(member?.streak)||0;
     const invited=Number(member?.unverified_invites)||0;
-    const checked=Boolean(member?.last_checkin&&String(member.last_checkin).slice(0,10)===todayUTC());
+    const lastDate=member?.last_checkin?String(member.last_checkin).slice(0,10):'';
+    const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
+    const checked=lastDate===todayUTC();
+    const activeStreak=lastDate===todayUTC()||lastDate===yesterday?streak:0;
     if(byId('experienceStatus'))byId('experienceStatus').textContent=member?'FOUNDING MEMBER':'OPEN TO EVERYONE';
     if(byId('experienceTitle'))byId('experienceTitle').textContent=member?'Your next chapter starts here.':'Your community era starts here.';
     if(byId('experienceCopy'))byId('experienceCopy').textContent=member
@@ -33,8 +36,9 @@
     if(byId('memberLevel'))byId('memberLevel').textContent='LEVEL '+level(xp);
     if(byId('xpProgress'))byId('xpProgress').textContent=number(step)+' / 150 XP';
     if(byId('xpToNext'))byId('xpToNext').textContent=number(next)+' XP to next level';
-    if(byId('progressFill')){byId('progressFill').style.width=Math.min(100,step/150*100)+'%';byId('progressFill').setAttribute('aria-valuenow',String(step));}
-    if(byId('streakCount'))byId('streakCount').textContent=member?number(streak)+' day'+(streak===1?'':'s'):'—';
+    if(byId('progressFill'))byId('progressFill').style.width=Math.min(100,step/150*100)+'%';
+    if(byId('progressFillTrack'))byId('progressFillTrack').setAttribute('aria-valuenow',String(step));
+    if(byId('streakCount'))byId('streakCount').textContent=member?number(activeStreak)+' day'+(activeStreak===1?'':'s'):'—';
     if(byId('referralCount'))byId('referralCount').textContent=member?number(invited):'—';
     if(byId('experienceStart'))byId('experienceStart').textContent=member?(checked?'Come back tomorrow ↗':'Claim today’s XP ↗'):'Join the founding club ↗';
     if(byId('questStateCheckin'))byId('questStateCheckin').textContent=checked?'Complete today':'Ready when you are';
