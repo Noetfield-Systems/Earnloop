@@ -90,10 +90,12 @@ function transactions(){
  const x=wrap();
  x.append(n('div','Revenue figures below are provider/source-reported, not bank collections. A provisional margin is shown only if every cost component is recorded. It is not verified profit.','note'));
  x.append(section('Conversion & transaction register',state.transactions.length+' retrieved source records',
- table(['Provider / external ID','Member','Event state','Source payout / gross','Reward reported','Provisional contribution','Verification'],state.transactions.map(t=>[
+ table(['Provider / external ID','Member','Event state','Source payout / gross','Provider share','User reward','Other costs','Payment / fulfillment','Contribution','Proof'],state.transactions.map(t=>[
  n('span',t.provider+' / '+short(t.event_id),'mono'),short(t.member_id),pill(t.source_state),
- fmt(t.gross_minor,t.currency),fmt(t.reward_minor,t.currency),
- t.economics.contribution_minor===null?'Incomplete · '+t.economics.missing_costs.length+' missing':fmt(t.economics.contribution_minor,t.currency)+' · unverified',
+ fmt(t.gross_minor,t.currency),fmt(t.economics.expenses.provider_share,t.currency),
+ fmt(t.economics.expenses.user_reward,t.currency),
+ t.economics.missing_costs.length+' cost fields missing', 'Cash unverified / not fulfilled',
+ t.economics.contribution_minor===null?'Not calculable':fmt(t.economics.contribution_minor,t.currency)+' provisional',
  pill(t.proof)]))));
  const two=n('div',null,'two-col');
  two.append(fieldsForm('Record actual transaction cost','Source URL required. Costs cannot become verified cash through manual entry.',[
@@ -107,6 +109,9 @@ function transactions(){
  {name:'kind',label:'Evidence kind',type:'select',options:I.evidence},
  {name:'source_url',label:'Actual evidence URL',type:'url',span:'span3'}],'evidence','Attach source reference'));
  x.append(section('Reconciliation intake','Controlled, append-only evidence',two));
+ x.append(section('Source-reported reward ledger','Not spendable; no funded balance exists',
+ table(['Provider / event','Member','Ledger event','Reported amount / unit','Availability'],(state.reward_ledger||[]).map(a=>[
+ a.provider+' / '+short(a.event_id),short(a.member_id),a.kind,a.amount+' '+a.currency,pill('unfunded / unverified')]))));
  x.append(section('Financial journal','Actual operator-reported rows; not bank-verified',
  table(['Provider','External ID','Kind','Amount','Classification'],state.finance.map(a=>[a.provider,short(a.external_id),a.kind,fmt(a.amount_minor,a.currency),pill(a.classification)]))));
  return x;
