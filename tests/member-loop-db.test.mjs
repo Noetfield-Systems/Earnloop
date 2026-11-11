@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
-import {setupMemberLoop,activity,game,claimChallenge,memberJourney} from '../src/member-loop.mjs';
+import {setupMemberLoop,activity,game,claimChallenge,memberJourney,referralOverview} from '../src/member-loop.mjs';
 import {setupCompanyOS,createWork,runOne} from '../src/company-os/engine.mjs';
 import {setupEconomics,recordFinance,financeOverview} from '../src/economics.mjs';
 import {discover} from '../src/company-os/opportunities.mjs';
@@ -11,6 +11,23 @@ test('Postgres member progression, financial evidence and durable follow-on exec
  await db.exec('ALTER TABLE earnloop_members ADD COLUMN checkin_streak INT NOT NULL DEFAULT 0');
  await setupMemberLoop(pool);await setupCompanyOS(pool);await setupEconomics(pool);
  const id='11111111-1111-4111-8111-111111111111';await pool.query('INSERT INTO earnloop_members(id,token_hash,code) VALUES($1,$2,$3)',[id,'test-only','abcdef123456']);const m={id,created_at:new Date(),xp:0};
+ const referred='22222222-2222-4222-8222-222222222222';
+ await pool.query('INSERT INTO earnloop_members(id,token_hash,code,referrer_id) VALUES($1,$2,$3,$4)',[referred,'referred-test-only','fedcba654321',id]);
+ let referrals=await referralOverview(pool,id);
+ assert.equal(referrals.joined,1);
+ assert.equal(referrals.activity_qualified,0);
+ assert.equal(referrals.pending,1);
+ await activity(pool,referred,'daily_checkin','checkin:2026-11-11',{xp:15});
+ assert.equal((await referralOverview(pool,id)).activity_qualified,0);
+ await activity(pool,referred,'puzzle_completed','puzzle:2026-11-11',{xp:10});
+ await activity(pool,referred,'puzzle_completed','puzzle:2026-11-11',{xp:10});
+ referrals=await referralOverview(pool,id);
+ assert.equal(referrals.activity_qualified,1);
+ assert.equal(referrals.pending,0);
+ assert.equal(referrals.payable,false);
+ assert.equal(referrals.identity_verified,false);
+ assert.equal(referrals.cash_reward_minor,0);
+
  await assert.rejects(()=>claimChallenge(pool,m),/seven/);
  const round=await game(pool,m);const nums=round.question.match(/\d+/g).map(Number);assert.equal((await game(pool,m,nums[0]+nums[1])).xp,10);await assert.rejects(()=>game(pool,m,nums[0]+nums[1]),/finished/);
  for(let i=0;i<7;i++){await activity(pool,id,'daily_checkin','test-day:'+i,{xp:15});await pool.query("UPDATE earnloop_activity SET created_at=NOW()-make_interval(days=>$2) WHERE member_id=$1 AND event_key=$3",[id,i,'test-day:'+i]);}
