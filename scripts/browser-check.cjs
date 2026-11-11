@@ -29,6 +29,6 @@ await page.fill('#token','local-integration-token-for-tests-only');
 await page.click('#connect');
 await page.waitForFunction(()=>document.getElementById('conn-state').textContent.includes('Authenticated'),{timeout:15000});
 await page.click('[data-view="transactions"]');
-await page.waitForSelector('.table-wrap');
+await page.getByText('Conversion & transaction register').waitFor();
 await page.screenshot({path:'test-results/operations-mobile.png',fullPage:true});
 console.log(JSON.stringify({mobileOverflow:overflow,errors,memberXp:25,puzzle:true,support:true,sponsorIntake:true,isolatedRedemptionInterest:true,operationsAuthenticated:true,productionUsersCreated:0}));await browser.close();if(errors.length||overflow)process.exit(1);})();
