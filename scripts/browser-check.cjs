@@ -18,4 +18,17 @@ await friend.waitForFunction(()=>document.getElementById('myXp').textContent==='
 await page.reload();
 await page.waitForFunction(()=>document.getElementById('referralCount')?.textContent.includes('1 active / 1 joined'));
 await friend.close();
-await page.screenshot({path:'test-results/earnloop-mobile.png',fullPage:true});const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)console.log(await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1&&getComputedStyle(e).position!=='absolute').map(e=>({tag:e.tagName,id:e.id,class:e.className,right:e.getBoundingClientRect().right})).slice(0,25)));await page.goto('http://127.0.0.1:3100/sponsor');await page.fill('#sponsorEmail','test@example.com');await page.fill('#sponsorName','Local Test Sponsor');await page.fill('#sponsorBrief','Isolated local integration test, not a real commercial lead.');await page.check('#sponsorConsent');await page.click('#sponsorForm button');await page.waitForFunction(()=>document.getElementById('sponsorStatus').textContent.includes('Inquiry saved'));console.log(JSON.stringify({mobileOverflow:overflow,errors,memberXp:25,puzzle:true,support:true,sponsorIntake:true,productionUsersCreated:0}));await browser.close();if(errors.length||overflow)process.exit(1);})();
+await page.screenshot({path:'test-results/earnloop-mobile.png',fullPage:true});const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)console.log(await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1&&getComputedStyle(e).position!=='absolute').map(e=>({tag:e.tagName,id:e.id,class:e.className,right:e.getBoundingClientRect().right})).slice(0,25)));await page.goto('http://127.0.0.1:3100/sponsor');await page.fill('#sponsorEmail','test@example.com');await page.fill('#sponsorName','Local Test Sponsor');await page.fill('#sponsorBrief','Isolated local integration test, not a real commercial lead.');await page.check('#sponsorConsent');await page.click('#sponsorForm button');await page.waitForFunction(()=>document.getElementById('sponsorStatus').textContent.includes('Inquiry saved'));await page.goto('http://127.0.0.1:3100/earn');
+await page.waitForSelector('#offers .empty');
+await page.fill('#amount','2500');
+await page.check('#ack');
+await page.click('#redeemForm button');
+await page.waitForFunction(()=>document.getElementById('redemptionMessage').textContent.includes('interest_unfunded'));
+await page.goto('http://127.0.0.1:3100/operations');
+await page.fill('#token','local-integration-token-for-tests-only');
+await page.click('#connect');
+await page.waitForFunction(()=>document.getElementById('conn-state').textContent.includes('Authenticated'),{timeout:15000});
+await page.click('[data-view="transactions"]');
+await page.waitForSelector('.table-wrap');
+await page.screenshot({path:'test-results/operations-mobile.png',fullPage:true});
+console.log(JSON.stringify({mobileOverflow:overflow,errors,memberXp:25,puzzle:true,support:true,sponsorIntake:true,isolatedRedemptionInterest:true,operationsAuthenticated:true,productionUsersCreated:0}));await browser.close();if(errors.length||overflow)process.exit(1);})();
