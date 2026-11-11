@@ -45,7 +45,7 @@ function fieldsForm(title,description,fields,action,buttonText='Record action'){
 }
 const I={track:[{label:'Track A · offerwall',value:'A'},{label:'Track B · sponsor quest',value:'B'},{label:'Track C · affiliate',value:'C'},{label:'Track D · merchant credit',value:'D'}],
  stage:[{value:'not_started'},{value:'applied'},{value:'response_received'},{value:'contract_reported'},{value:'blocked'}],
- evidence:[{value:'provider_report'},{value:'approval'},{value:'reversal'},{value:'remittance'},{value:'bank_receipt'},{value:'fulfillment'},{value:'dispute'},{value:'other'}],
+ evidence:[{value:'provider_report'},{value:'approval'},{value:'reversal'},{value:'remittance'},{value:'bank_receipt'},{value:'fulfillment'},{value:'dispute'},{value:'failure'},{value:'other'}],
  charge:[{value:'provider_share'},{value:'user_reward'},{value:'referral'},{value:'processing'},{value:'fulfillment'},{value:'acquisition'},{value:'reversal'},{value:'support'}]};
 async function request(path,method='GET',value){const r=await fetch(path,{method,headers:{Authorization:'Bearer '+auth,'Content-Type':'application/json'},body:value?JSON.stringify(value):undefined,cache:'no-store'});const j=await r.json();if(!r.ok)throw Error(j.error||'HTTP '+r.status);return j;}
 async function refresh(){if(!auth)return;const [ops,company,commercial]=await Promise.all([request('/api/company-os/operations'),request('/api/company-os/overview'),request('/api/company-os/commercial')]);state={...ops,company,commercial};$('asof').textContent='Live readback · '+d(new Date());$('conn-state').textContent='Authenticated / live database';$('api-dot').classList.add('connected');$('auth').classList.add('hidden');render();}
@@ -77,7 +77,7 @@ function overview(){
  x.append(section('First positive-margin transaction · proof board','Not accomplished / no synthetic proof',proof));
  const cols=n('div',null,'two-col'),growth=panel('User activation & retention','Based on actual signup, member activity and existing Company OS metrics.');
  const kv=n('div',null,'mini-grid');
- for(const [t,v] of [['Qualified by activity',c.qualifying_activity],['Verified identity',c.verified_members],['Reported reversals',c.reported_reversals],['Open redemption interests',c.redemption_requests],['Verified payouts',c.verified_payouts]])add(kv,n('div',t+' · '+v,'item'));
+ for(const [t,v] of [['Qualified by activity',c.qualifying_activity],['Verified identity',c.verified_members],['Reported reversals',c.reported_reversals],['Failure reports',c.reported_failures],['Open redemption interests',c.redemption_requests],['Verified payouts',c.verified_payouts]])add(kv,n('div',t+' · '+v,'item'));
  growth.append(kv);
  const com=panel('Commercial and provider next actions','Real partner onboarding evidence and work packet states.');
  const list=n('div',null,'mini-grid');for(const p of state.providers){list.append(n('div',p.name+' · '+p.technical_status+' · '+p.onboarding_status,'item'));}
