@@ -39,3 +39,17 @@ test('premium marketing clearly distinguishes community XP from funded rewards',
   assert.match(html,/never present community XP as cash/i);
   assert.doesNotMatch(html,/(?:guaranteed|instant) cash(?:out| rewards)/i);
 });
+
+test('member referrals show engaged invitees separately from raw signups',()=>{
+  const html=read('public/index.html');
+  const client=read('public/experience.js');
+  const server=read('src/server.mjs');
+  const memberLoop=read('src/member-loop.mjs');
+  assert.match(html,/activity-qualified after a check-in and a completed daily puzzle/);
+  assert.match(client,/activity_qualified_invites/);
+  assert.match(client,/active \/ /);
+  assert.match(server,/referralOverview\(pool,m.id\)/);
+  assert.match(memberLoop,/kind='daily_checkin'/);
+  assert.match(memberLoop,/kind='puzzle_completed'/);
+  assert.match(memberLoop,/identity_verified:false,payable:false,cash_reward_minor:0/);
+});
