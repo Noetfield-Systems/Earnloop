@@ -8,7 +8,7 @@ const CHARGES=['provider_share','user_reward','referral','processing','fulfillme
 const valid=(s,min=1,max=180)=>typeof s==='string'&&s.trim().length>=min&&s.length<=max;
 const cash=n=>Number.isSafeInteger(n)&&n>=0&&n<=100000000;
 const requiredLink=s=>{if(!LINK.test(s||''))throw Error('HTTPS source evidence required');return s.trim();};
-const key=s=>{if(!/^[A-Za-z0-9_.:-]{5,140}$/.test(s||''))throw Error('Invalid external reference');return s;};
+const key=s=>{if(!/^[A-Za-z0-9_.:-]{1,140}$/.test(s||''))throw Error('Invalid external reference');return s;};
 const uuid=s=>{if(!UUID.test(s||''))throw Error('Invalid identifier');return s;};
 const allowed=(x,a)=>{if(!a.includes(x))throw Error('Unsupported state or type');return x;};
 const event=async(pool,action,reference,details={})=>pool.query('INSERT INTO earnloop_ops_audit(id,action,reference,details) VALUES($1,$2,$3,$4)',[crypto.randomUUID(),action,reference,JSON.stringify(details)]);
@@ -55,9 +55,9 @@ export async function setupOperations(pool){
 export function provisionalMargin(row,costs){
  const amount=row.gross_minor;
  const reportedReward=row.reward_minor;
- const values=Object.fromEntries(CHARGES.map(k=>[k,costs[k]??null]));
+ const values=Object.fromEntries(CHARGES.map(k=>[k,costs[k]?.currency===row.currency?costs[k].amount_minor:null]));
  if(reportedReward!=null && values.user_reward==null)values.user_reward=reportedReward;
- const complete=Number.isSafeInteger(amount)&&Object.values(values).every(v=>Number.isSafeInteger(v)&&v>=0);
+ const complete=/^[A-Z]{3}$/.test(row.currency||'')&&Number.isSafeInteger(amount)&&Object.values(values).every(v=>Number.isSafeInteger(v)&&v>=0);
  return {revenue_minor:amount,reported_reward_minor:reportedReward,expenses:values,
   contribution_minor:complete?amount-Object.values(values).reduce((a,b)=>a+b,0):null,
   verified_contribution_minor:null,valuation:'source_report_only',missing_costs:CHARGES.filter(k=>values[k]==null)};
@@ -83,7 +83,7 @@ export async function getOperations(pool,env=process.env){
   pool.query('SELECT provider,external_id,kind,currency,amount_minor,classification,evidence_reference FROM earnloop_financial_journal ORDER BY created_at DESC LIMIT 150')
  ]);
  const cMap=new Map();
- for(const r of costs.rows){const index=r.provider+':'+r.event_id;const v=cMap.get(index)||{};v[r.kind]=Number(r.amount_minor);cMap.set(index,v);}
+ for(const r of costs.rows){const index=r.provider+':'+r.event_id;const v=cMap.get(index)||{};v[r.kind]={amount_minor:Number(r.amount_minor),currency:r.currency};cMap.set(index,v);}
  const transactions=[
  ...torox.rows.map(r=>({provider:'torox',event_id:r.event_id,member_id:r.member_id,offer_id:r.offer_id,
   source_state:r.status,reversed:!!r.reversal,currency:'USD',gross_minor:Math.round(Number(r.publisher_payout_reported_usd)*100),
@@ -103,12 +103,21 @@ export async function getOperations(pool,env=process.env){
    actual_approved: p==='torox'&&toroxConfigured(env),notes:note?.notes||null};
  });
  const risk=interactions.rows.filter(x=>x.flag);
+ const rewardLedger=[
+  ...torox.rows.map(r=>({provider:'torox',event_id:r.event_id,member_id:r.member_id,kind:r.reversal?'source_reversal':'provider_reported_units',
+   amount:String(r.amount_units),currency:'PROVIDER_UNITS',classification:'source_reported_unfunded',available:false,created_at:r.received_at})),
+  ...legacy.rows.map(r=>({provider:r.provider,event_id:r.event_id,member_id:r.member_id,kind:r.status==='reversed'?'source_reversal':'provider_reported_reward',
+   amount:String(r.reward_cents),currency:'UNVERIFIED_MINOR_UNITS',classification:'source_reported_unfunded',available:false,created_at:r.received_at})),
+  ...finance.rows.filter(r=>['reward_liability','reward_reservation','fulfillment','refund'].includes(r.kind))
+   .map(r=>({provider:r.provider,event_id:r.external_id,member_id:null,kind:r.kind,amount:String(r.amount_minor),
+    currency:r.currency,classification:r.classification,available:false,created_at:null}))
+ ];
  const signedCash=0; // No independent bank reconciliation endpoint exists in this release.
  return {product:'earnloop',evidence_policy:'manual entries are operator-reported; never externally verified',
   integration:'existing_company_os',providers,members:m,offers:offers.rows,interactions:interactions.rows,
   transactions,redemptions:redemptions.rows,evidence:evidence.rows,costs:costs.rows,
   experiments:experiments.rows,support:support.rows,sponsor_leads:sponsors.rows,work:work.rows,finance:finance.rows,
-  risk_flags:risk,first_profit:{verified_collected_cash_minor:null,verified_positive_margin_transactions:signedCash,
+  risk_flags:risk,reward_ledger:rewardLedger,first_profit:{verified_collected_cash_minor:null,verified_positive_margin_transactions:signedCash,
    verified_redemptions:0,proof_achieved:false,reason:'Independent provider settlement, bank receipt, complete actual costs and fulfillment reconciliation required'},
   counts:{members:m.length,qualifying_activity:m.filter(x=>x.qualification==='activity_qualified').length,
    verified_members:0,source_reported_transactions:transactions.length,verified_transactions:0,
