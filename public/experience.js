@@ -24,6 +24,7 @@
     const next=150-step;
     const streak=Number(member?.streak)||0;
     const invited=Number(member?.unverified_invites)||0;
+    const qualified=Number(member?.activity_qualified_invites)||0;
     const lastDate=member?.last_checkin?String(member.last_checkin).slice(0,10):'';
     const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
     const checked=lastDate===todayUTC();
@@ -39,10 +40,10 @@
     if(byId('progressFill'))byId('progressFill').style.width=Math.min(100,step/150*100)+'%';
     if(byId('progressFillTrack'))byId('progressFillTrack').setAttribute('aria-valuenow',String(step));
     if(byId('streakCount'))byId('streakCount').textContent=member?number(activeStreak)+' day'+(activeStreak===1?'':'s'):'—';
-    if(byId('referralCount'))byId('referralCount').textContent=member?number(invited):'—';
+    if(byId('referralCount'))byId('referralCount').textContent=member?number(qualified)+' active / '+number(invited)+' joined':'—';
     if(byId('experienceStart'))byId('experienceStart').textContent=member?(checked?'Come back tomorrow ↗':'Claim today’s XP ↗'):'Join the founding club ↗';
     if(byId('questStateCheckin'))byId('questStateCheckin').textContent=checked?'Complete today':'Ready when you are';
-    if(byId('questStateInvite'))byId('questStateInvite').textContent=invited>0?'Invites tracked':'Invite a friend';
+    if(byId('questStateInvite'))byId('questStateInvite').textContent=qualified>0?'Friend completed both activities':invited>0?'Invited friend can check in and play':'Invite a friend';
     if(byId('questStatePartner'))byId('questStatePartner').textContent=stats?.offerwall_status==='publisher_approved'?'Publisher configuration available':'Awaiting verified partner';
     if(byId('journeyJoined'))byId('journeyJoined').classList.toggle('complete',!!member);
     if(byId('journeyDaily'))byId('journeyDaily').classList.toggle('complete',checked);
