@@ -11,7 +11,7 @@ await friend.waitForFunction(()=>document.getElementById('myXp').textContent==='
 await friend.click('#playStart');
 await friend.waitForSelector('#puzzleForm:not([hidden])');
 const friendQ=await friend.locator('#puzzleQuestion').textContent();
-const friendNums=friendQ.match(/\\d+/g).map(Number);
+const friendNums=friendQ.match(/\d+/g).map(Number);
 await friend.fill('#puzzleAnswer',String(friendNums[0]+friendNums[1]));
 await friend.click('#puzzleSubmit');
 await friend.waitForFunction(()=>document.getElementById('myXp').textContent==='25');
