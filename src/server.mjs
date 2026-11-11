@@ -1,4 +1,4 @@
-import {setupMemberLoop,activity,memberJourney,claimChallenge,game} from './member-loop.mjs';
+import {setupMemberLoop,activity,memberJourney,claimChallenge,game,referralOverview} from './member-loop.mjs';
 import {setupEconomics,recordFinance,financeOverview} from './economics.mjs';
 import {opportunityOverview} from './company-os/opportunities.mjs';
 import http from 'node:http';
@@ -136,8 +136,10 @@ async function server(req,res){
  }
  if(method==='GET'&&route==='/api/me'){
   const m=await member(req);if(!m)return send(res,200,{member:null});
-  const rr=await pool.query('SELECT COUNT(*)::INT n FROM earnloop_members WHERE referrer_id=$1',[m.id]);
-  return send(res,200,{member:{id:m.id,code:m.code,xp:m.xp,last_checkin:m.last_checkin,unverified_invites:rr.rows[0].n,streak:m.checkin_streak},cash_cents:0,cash_payouts_enabled:false});
+  const referrals=await referralOverview(pool,m.id);
+  return send(res,200,{member:{id:m.id,code:m.code,xp:m.xp,last_checkin:m.last_checkin,
+   unverified_invites:referrals.joined,activity_qualified_invites:referrals.activity_qualified,
+   streak:m.checkin_streak},referrals,cash_cents:0,cash_payouts_enabled:false});
  }
  if(route.startsWith('/api/company-os/')){
   if(!admin(req)) return fail(res,401,'Administrator authorization required');

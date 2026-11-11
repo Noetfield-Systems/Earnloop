@@ -8,6 +8,34 @@ CREATE TABLE IF NOT EXISTS earnloop_game_rounds(id UUID PRIMARY KEY,member_id UU
 CREATE INDEX IF NOT EXISTS earnloop_activity_member_idx ON earnloop_activity(member_id,created_at);
 `);}
 export async function activity(pool,id,kind,key,details={}){await pool.query('INSERT INTO earnloop_activity(member_id,kind,event_key,details) VALUES($1,$2,$3,$4) ON CONFLICT DO NOTHING',[id,kind,key,JSON.stringify(details)]);}
+/**
+ * Count referral activity, not simply account creations. A qualifying
+ * referral checked in AND completed an actual puzzle (two separate actions).
+ * This is non-cash engagement, not identity proof, a paid conversion, or
+ * permission to issue a referral payout.
+ */
+export async function referralOverview(pool,referrerId){
+ const r=await pool.query(`
+  SELECT COUNT(*)::int AS joined,
+         COUNT(*) FILTER (
+           WHERE EXISTS (
+             SELECT 1 FROM earnloop_activity a
+             WHERE a.member_id=invitee.id AND a.kind='daily_checkin'
+           )
+           AND EXISTS (
+             SELECT 1 FROM earnloop_activity a
+             WHERE a.member_id=invitee.id AND a.kind='puzzle_completed'
+           )
+         )::int AS activity_qualified
+  FROM earnloop_members invitee
+  WHERE invitee.referrer_id=$1
+ `,[referrerId]);
+ const joined=r.rows[0]?.joined||0;
+ const qualified=r.rows[0]?.activity_qualified||0;
+ return {joined,activity_qualified:qualified,pending:joined-qualified,
+         criterion:'one check-in and one completed puzzle by the invitee',
+         identity_verified:false,payable:false,cash_reward_minor:0};
+}
 export async function publishCampaign(pool){await pool.query("INSERT INTO earnloop_campaigns(id,title,state) VALUES('founding-seven','Seven days of momentum','active') ON CONFLICT DO NOTHING");return {kind:'campaign_published',path:'/challenge',campaign_id:'founding-seven',reward:'noncash XP',completion_state:'implemented',external_action_executed:false};}
 export async function memberJourney(pool,m){
  const rows=await pool.query('SELECT kind,details,created_at FROM earnloop_activity WHERE member_id=$1 ORDER BY created_at DESC LIMIT 60',[m.id]);
