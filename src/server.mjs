@@ -93,7 +93,7 @@ async function server(req,res){
   try{await pool.query('SELECT 1');return send(res,200,{ok:true,database:'connected',product:'earnloop',company_os:'dedicated',cash_payouts_enabled:false,revision:process.env.RAILWAY_GIT_COMMIT_SHA||null});}
   catch{return fail(res,503,'Database unavailable');}
  }
- const files={'/':'index.html','/challenge':'index.html','/sponsor':'sponsor.html','/guide':'guide.html','/member-loop.js':'member-loop.js','/loop.css':'loop.css','/social.svg':'social.svg','/privacy':'privacy.html','/terms':'terms.html','/company-os':'company-os.html','/style.css':'style.css','/premium.css':'premium.css','/app.js':'app.js','/experience.js':'experience.js','/company-os.js':'company-os.js'};
+ const files={'/':'index.html','/challenge':'index.html','/sponsor':'sponsor.html','/guide':'guide.html','/member-loop.js':'member-loop.js','/loop.css':'loop.css','/social.svg':'social.svg','/privacy':'privacy.html','/terms':'terms.html','/company-os':'company-os.html','/style.css':'style.css','/sponsor.css':'sponsor.css','/premium.css':'premium.css','/app.js':'app.js','/experience.js':'experience.js','/company-os.js':'company-os.js'};
  if(method==='GET'&&Object.hasOwn(files,route)){
   const file=files[route],type=file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8';
   const raw=await fs.readFile(path.join(root,'public',file));return send(res,200,raw,type);
