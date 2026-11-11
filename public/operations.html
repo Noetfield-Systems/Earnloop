@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Earnloop / Operations</title>
+<link rel="stylesheet" href="/operations.css"></head>
+<body>
+<div class="app-shell">
+<aside class="sidebar">
+ <a href="/" class="brand"><span class="brand-symbol">e<span>✦</span></span><span>earnloop<small>OPERATIONS</small></span></a>
+ <div class="nav-heading">WORKSPACE</div><nav id="navigation" aria-label="Operations navigation">
+ <button class="nav active" data-view="overview">⌁ <span>Command center</span></button>
+ <button class="nav" data-view="transactions">↗ <span>Transactions & margin</span></button>
+ <button class="nav" data-view="providers">◈ <span>Provider onboarding</span></button>
+ <button class="nav" data-view="members">♙ <span>Members & qualification</span></button>
+ <button class="nav" data-view="offers">▧ <span>Offers & discovery</span></button>
+ <button class="nav" data-view="redemptions">◇ <span>Redemptions</span></button>
+ <button class="nav" data-view="trust">⊞ <span>Trust & evidence</span></button>
+ <button class="nav" data-view="support">◌ <span>Support & sponsors</span></button>
+ <button class="nav" data-view="experiments">✳ <span>Tracks A–D</span></button>
+ <button class="nav" data-view="company">⌘ <span>Company OS</span></button>
+ </nav>
+ <div class="sidebar-bottom"><div class="sidebar-note"><strong>Evidence integrity</strong><p>Real database records only. Provider reports are never represented as collected cash.</p></div><a href="/earn" class="side-link">Member experience ↗</a><a href="/company-os" class="side-link">Existing Company OS ↗</a></div>
+</aside>
+<main class="main">
+ <header class="topline"><div class="breadcrumb">EARNLOOP <span>/</span> INTERNAL OPERATIONS <span id="crumb"></span></div><div class="top-actions"><span class="live-dot" id="api-dot"></span><span id="conn-state">Not authenticated</span><button id="refresh" class="small-button" type="button">↻ Refresh</button></div></header>
+ <section class="head"><div><div class="eyebrow">REVENUE ENGINE / FOUNDER OPERATIONS</div><h1 id="headline">Operating the earning loop<span class="accent">.</span></h1><p id="subhead">One source of truth for conversions, provider supply, funded rewards and verified profit.</p></div><div class="date-block"><span>ENVIRONMENT</span><strong>Production · Earnloop</strong><small>No synthetic transactions</small></div></section>
+ <section id="auth" class="auth-panel"><div><strong>Private operator access</strong><p>Enter the existing Company OS administrator token. It remains in memory for this tab only.</p></div><div class="auth-fields"><label class="sr-only" for="token">Company OS token</label><input id="token" type="password" autocomplete="off" placeholder="COMPANY_OS_ADMIN_TOKEN"><button id="connect" class="primary" type="button">Connect workspace ↗</button></div></section>
+ <div id="feedback" role="status" aria-live="polite"></div>
+ <div class="toolbar"><div class="role-picker"><label for="role">OPERATING VIEW</label><select id="role"><option value="all">All departments</option><option value="growth">Growth</option><option value="partnerships">Partnerships</option><option value="trust">Trust</option><option value="revenue">Revenue</option><option value="engineering">Engineering</option><option value="verifier">Verification</option></select></div><span id="asof">Connect to load actual records</span></div>
+ <section id="content" class="content" aria-live="polite"><div class="empty">Authenticate to load operational data from the existing Earnloop database.</div></section>
+ <footer><span>EAR NLOOP / 2026</span><span>Operator-reported ≠ independently verified · Company OS is the only external integration</span></footer>
+</main></div>
+<script src="/operations.js" defer></script>
+</body></html>
