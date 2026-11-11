@@ -121,7 +121,7 @@ export async function getOperations(pool,env=process.env){
    verified_redemptions:0,proof_achieved:false,reason:'Independent provider settlement, bank receipt, complete actual costs and fulfillment reconciliation required'},
   counts:{members:m.length,qualifying_activity:m.filter(x=>x.qualification==='activity_qualified').length,
    verified_members:0,source_reported_transactions:transactions.length,verified_transactions:0,
-   reported_reversals:transactions.filter(x=>x.reversed).length,redemption_requests:redemptions.rowCount,verified_payouts:0,
+   reported_reversals:transactions.filter(x=>x.reversed).length,reported_failures:evidence.rows.filter(x=>x.kind==='failure').length,redemption_requests:redemptions.rowCount,verified_payouts:0,
    flagged_interactions:risk.length,offers_published:offers.rows.filter(x=>x.state==='operator_published').length},
   payout_execution_enabled:false};
 }
@@ -204,7 +204,7 @@ export async function operate(pool,input){
  }
  if(action==='evidence'){
   const provider=key(input.provider),external=key(input.event_id),kind=allowed(input.kind,
-   ['provider_report','approval','reversal','remittance','bank_receipt','fulfillment','dispute','other']);
+   ['provider_report','approval','reversal','remittance','bank_receipt','fulfillment','dispute','failure','other']);
   const id=crypto.randomUUID();
   const r=await pool.query("INSERT INTO earnloop_ops_evidence(id,provider,event_id,kind,source_url) VALUES($1,$2,$3,$4,$5) "+
    "ON CONFLICT(provider,event_id,kind,source_url) DO NOTHING RETURNING id",[id,provider,external,kind,requiredLink(input.source_url)]);
