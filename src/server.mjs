@@ -13,6 +13,7 @@ import {setupCommercial,listCommercial,approveCommercial,configureContact,dispat
 import {REPLICATION_TARGETS,nextCommercialAction} from './company-os/replication.mjs';
 import {assessCompanyOutcome} from './company-os/shared-evidence-gate.mjs';
 import {toroxConfigured,createToroxWallSession,parseToroxPostback} from './torox.mjs';
+import {setupOperations,getOperations,memberOffers,trackMember,requestRedemption,memberRedemptions,operate} from './operations.mjs';
 
 const PORT=Number(process.env.PORT||3000);
 if(!process.env.DATABASE_URL) throw Error('DATABASE_URL required: refusing ephemeral member storage');
@@ -86,6 +87,7 @@ async function init(){
  await setupEconomics(pool);
  await setupCompanyOS(pool);
  await setupCommercial(pool);
+ await setupOperations(pool);
 }
 async function server(req,res){
  const url=new URL(req.url||'/', 'https://localhost');const route=url.pathname,method=req.method||'GET';
@@ -93,12 +95,12 @@ async function server(req,res){
   try{await pool.query('SELECT 1');return send(res,200,{ok:true,database:'connected',product:'earnloop',company_os:'dedicated',cash_payouts_enabled:false,revision:process.env.RAILWAY_GIT_COMMIT_SHA||null});}
   catch{return fail(res,503,'Database unavailable');}
  }
- const files={'/':'index.html','/challenge':'index.html','/sponsor':'sponsor.html','/guide':'guide.html','/member-loop.js':'member-loop.js','/loop.css':'loop.css','/social.svg':'social.svg','/privacy':'privacy.html','/terms':'terms.html','/company-os':'company-os.html','/style.css':'style.css','/sponsor.css':'sponsor.css','/premium.css':'premium.css','/app.js':'app.js','/experience.js':'experience.js','/company-os.js':'company-os.js'};
+ const files={'/':'index.html','/challenge':'index.html','/sponsor':'sponsor.html','/guide':'guide.html','/member-loop.js':'member-loop.js','/loop.css':'loop.css','/social.svg':'social.svg','/privacy':'privacy.html','/terms':'terms.html','/company-os':'company-os.html','/operations':'operations.html','/operations.js':'operations.js','/operations.css':'operations.css','/earn':'earn.html','/earn.js':'earn.js','/style.css':'style.css','/sponsor.css':'sponsor.css','/premium.css':'premium.css','/app.js':'app.js','/experience.js':'experience.js','/company-os.js':'company-os.js'};
  if(method==='GET'&&Object.hasOwn(files,route)){
   const file=files[route],type=file.endsWith('.js')?'text/javascript; charset=utf-8':file.endsWith('.css')?'text/css; charset=utf-8':file.endsWith('.svg')?'image/svg+xml':'text/html; charset=utf-8';
   const raw=await fs.readFile(path.join(root,'public',file));return send(res,200,raw,type);
  }
- if(method==='GET'&&route==='/robots.txt')return send(res,200,'User-agent: *\nAllow: /\nDisallow: /company-os\nDisallow: /api/\nSitemap: https://earnloop-web-production.up.railway.app/sitemap.xml','text/plain');
+ if(method==='GET'&&route==='/robots.txt')return send(res,200,'User-agent: *\nAllow: /\nDisallow: /company-os\nDisallow: /operations\nDisallow: /api/\nSitemap: https://earnloop-web-production.up.railway.app/sitemap.xml','text/plain');
  if(method==='GET'&&route==='/sitemap.xml')return send(res,200,'<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['/','/challenge','/guide','/sponsor'].map(p=>'<url><loc>https://earnloop-web-production.up.railway.app'+p+'</loc></url>').join('')+'</urlset>','application/xml');
  if(method==='GET'&&route==='/api/journey'){const m=await member(req);if(!m)return fail(res,401,'Join first');return send(res,200,await memberJourney(pool,m));}
  if(method==='GET'&&route==='/api/game'){const m=await member(req);if(!m)return fail(res,401,'Join first');return send(res,200,await game(pool,m));}
@@ -141,8 +143,28 @@ async function server(req,res){
    unverified_invites:referrals.joined,activity_qualified_invites:referrals.activity_qualified,
    streak:m.checkin_streak},referrals,cash_cents:0,cash_payouts_enabled:false});
  }
+ if(method==='GET'&&route==='/api/earn/offers')return send(res,200,await memberOffers(pool));
+ if(method==='GET'&&route==='/api/earn/redemptions'){
+  const m=await member(req);if(!m)return fail(res,401,'Join first');
+  return send(res,200,await memberRedemptions(pool,m.id));
+ }
+ if(method==='POST'&&(route==='/api/earn/track'||route==='/api/earn/redemption-request')){
+  const origin=req.headers.origin;if(origin&&new URL(origin).host!==req.headers.host)return fail(res,403,'Origin mismatch');
+  if(!rate(req,15))return fail(res,429,'Rate limit exceeded');
+  const m=await member(req);if(!m)return fail(res,401,'Join first');
+  const {value}=await body(req,4000);
+  try {return send(res,201,route==='/api/earn/track'?await trackMember(pool,m.id,value):await requestRedemption(pool,m.id,value));}
+  catch(e){return fail(res,400,e.message);}
+ }
  if(route.startsWith('/api/company-os/')){
   if(!admin(req)) return fail(res,401,'Administrator authorization required');
+  if(method==='GET'&&route==='/api/company-os/operations')return send(res,200,await getOperations(pool));
+  if(method==='POST'&&route==='/api/company-os/operations'){
+   const origin=req.headers.origin;if(origin&&new URL(origin).host!==req.headers.host)return fail(res,403,'Origin mismatch');
+   if(!rate(req,25))return fail(res,429,'Rate limit exceeded');
+   const {value}=await body(req,9000);
+   try{return send(res,200,{result:await operate(pool,value)});}catch(e){return fail(res,400,e.message);}
+  }
   if(method==='POST'&&route==='/api/company-os/evidence-gate'){
    const {value}=await body(req,4096);
    return send(res,200,assessCompanyOutcome(value));
