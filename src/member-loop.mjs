@@ -42,7 +42,7 @@ export async function memberJourney(pool,m){
  const days=await pool.query("SELECT COUNT(DISTINCT (created_at AT TIME ZONE 'UTC')::date)::int n FROM earnloop_activity WHERE member_id=$1 AND kind='daily_checkin'",[m.id]);
  const cases=await pool.query('SELECT id,subject,state,created_at FROM earnloop_support WHERE member_id=$1 ORDER BY created_at DESC LIMIT 10',[m.id]);
  const rank=await pool.query('SELECT COUNT(*)::int n FROM earnloop_members WHERE created_at<=$1',[m.created_at]);
- const partner=await pool.query('SELECT offer_id,status,received_at FROM earnloop_torox_postbacks WHERE member_id=$1 ORDER BY received_at DESC LIMIT 20',[m.id]);
+ const partner=await pool.query('SELECT event_id,offer_id,amount_units,reversal,status,received_at FROM earnloop_torox_postbacks WHERE member_id=$1 ORDER BY received_at DESC,event_id DESC LIMIT 30',[m.id]);
  return {activity:rows.rows,support:cases.rows,partner_reports:partner.rows,challenge:{days:Math.min(7,days.rows[0].n),target:7,bonus_xp:70},founding_member:rank.rows[0].n<=500,rewards:{xp:m.xp,payouts_enabled:false,pending_partner_reports:partner.rowCount,approved_reward_minor:0,fulfilled_minor:0,currency:null},campaigns:(await pool.query("SELECT id,title FROM earnloop_campaigns WHERE state='active'")).rows};
 }
 export async function claimChallenge(pool,m){

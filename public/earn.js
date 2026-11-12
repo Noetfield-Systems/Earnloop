@@ -30,6 +30,27 @@ async function load(){
    const b=el('button','Open approved offerwall','action');b.disabled=!member;b.addEventListener('click',async()=>{b.disabled=true;try{const r=await api('/api/offerwall/session');location.assign(r.wall_url);}catch(e){c.append(el('p',e.message));b.disabled=false;}});c.append(b);list.append(c);
   }
   if(!list.children.length)list.append(el('div','No paid partner offer inventory is available yet. Join the community and check back after an actual publisher approval.','empty'));
+  const reports=$('partnerReports'),history=$('supportHistory');
+  reports.replaceChildren();history.replaceChildren();
+  if(member){
+    const journey=await api('/api/journey');
+    for(const r of journey.partner_reports||[]){
+      const item=el('div',null,'item');
+      const kind=r.reversal?'Reversal reported':'Conversion reported';
+      item.append(el('strong',kind+' · offer '+r.offer_id));
+      item.append(el('p',String(r.amount_units)+' partner reward units · '+new Date(r.received_at).toLocaleDateString()));
+      item.append(el('small','Source event '+r.event_id+' · '+r.status+' · not payable'));
+      reports.append(item);
+    }
+    if(!reports.children.length)reports.append(el('p','No partner callbacks recorded for this member yet.'));
+    for(const s of journey.support||[]){
+      history.append(el('div',s.state+' · '+s.subject+' · '+new Date(s.created_at).toLocaleDateString(),'item'));
+    }
+    if(!history.children.length)history.append(el('p','No support requests yet.'));
+  }else{
+    reports.append(el('p','Join to see your conversion and reversal reports.'));
+    history.append(el('p','Join to open and track support requests.'));
+  }
   const req=$('requests');req.replaceChildren();
   if(member){const d=await api('/api/earn/redemptions');for(const r of d.requests){req.append(el('div',r.state+' · '+r.currency+' '+(r.amount_minor/100).toFixed(2)+' · '+new Date(r.created_at).toLocaleDateString(),'item'));}if(!d.requests.length)req.append(el('p','No redemption-interest requests recorded.'));}
   else req.append(el('p','Create a session to view requests.'));
@@ -42,3 +63,16 @@ $('redeemForm').addEventListener('submit',async e=>{e.preventDefault();if(!membe
   $('redemptionMessage').textContent='Request '+r.id+' recorded: '+r.state+'. This is not a cash obligation.';await load();
  }catch(err){$('redemptionMessage').textContent=err.message;}finally{b.disabled=false;}});
 load();
+$('creditSupport').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(!member){$('supportResult').textContent='Join first.';return;}
+  const button=event.submitter;button.disabled=true;
+  try{
+    const result=await api('/api/support','POST',{
+      subject:$('supportSubject').value.trim(),message:$('supportMessage').value.trim()
+    });
+    $('supportResult').textContent='Support case '+result.id+' opened.';
+    $('creditSupport').reset();await load();
+  }catch(error){$('supportResult').textContent=error.message;}
+  finally{button.disabled=false;}
+});

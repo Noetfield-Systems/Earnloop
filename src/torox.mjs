@@ -67,6 +67,10 @@ export function parseToroxPostback(uri, env = process.env) {
   if (!crypto.timingSafeEqual(Buffer.from(sig.toLowerCase(), 'hex'), Buffer.from(expected, 'hex')))
     throw new Error('BAD_POSTBACK_SIGNATURE');
   const reversal = Number(amount) < 0 || Number(payout) < 0;
+  // The legacy Torox MD5 signature does not bind amounts. Preserve a consistent
+  // signed source observation; independent validation is still required.
+  if (reversal && (Number(amount) > 0 || Number(payout) > 0))
+    throw new Error('INCONSISTENT_REVERSAL');
   return { provider: 'torox', eventId: id, offerId: oid, memberId: uid, amountUnits: amount,
     publisherPayoutReported: payout, reversal };
 }
