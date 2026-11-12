@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import {toroxConfigured} from './torox.mjs';
+import {evaluateRewardCreditReadiness} from './company-os/generated/feature_6b8888ce2d17.mjs';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const LINK=/^https:\/\/[^\s<>]{5,1000}$/i;
@@ -63,6 +64,35 @@ export function provisionalMargin(row,costs){
   verified_contribution_minor:null,valuation:'source_report_only',missing_costs:CHARGES.filter(k=>values[k]==null)};
 }
 
+/** Show source-reported reward readiness from the original ledger projection.
+ * No cash verification integration exists. Never let a reported postback,
+ * operator evidence URL, or numeric margin grant payable rewards.
+ */
+export function sourceRewardCreditReadiness(transaction,env=process.env){
+ const safeCents=value=>{
+  if(typeof value==='number' && Number.isSafeInteger(value))return value;
+  if(typeof value==='string' && /^(0|[1-9][0-9]*)$/.test(value) &&
+     Number.isSafeInteger(Number(value)))return Number(value);
+  return -1;
+ };
+ const expense=transaction?.economics?.expenses?.user_reward;
+ const reward=expense ?? transaction?.reward_minor;
+ const data={
+  publisherApproved:transaction?.provider==='torox' && toroxConfigured(env),
+  callbackVerified:false, // source postback != independent provider validation
+  reversalPending:transaction?.reversed!==false,
+  settledGrossCents:safeCents(transaction?.gross_minor),
+  rewardLiabilityCents:safeCents(reward),
+  cashIndependentlyVerified:false, // no reconciled bank/provider cash source
+ };
+ const verdict=evaluateRewardCreditReadiness(data);
+ return {...verdict,
+  evidence_state:'SOURCE_REPORTED_UNVERIFIED',
+  observed_provider_callback:false,
+  independently_collected_cash:false,
+  payout_execution_enabled:false};
+}
+
 export async function getOperations(pool,env=process.env){
  const [members,offers,interactions,redemptions,evidence,costs,experiments,providerNotes,torox,legacy,support,sponsors,work,finance]=await Promise.all([
   pool.query("SELECT m.id,m.code,m.xp,m.created_at,m.last_checkin,COUNT(DISTINCT a.id)::int AS activity_events,"+
@@ -94,6 +124,7 @@ export async function getOperations(pool,env=process.env){
  ].map(r=>({...r,economics:provisionalMargin(r,cMap.get(r.provider+':'+r.event_id)||{}),
    evidence:evidence.rows.filter(e=>e.provider===r.provider&&e.event_id===r.event_id),
    cash_verified:false,payout_verified:false,fulfillment_verified:false,proof:'unverified'}))
+ .map(r=>({...r,reward_credit_readiness:sourceRewardCreditReadiness(r,env)}))
  .sort((a,b)=>Date.parse(b.received_at)-Date.parse(a.received_at)).slice(0,150);
  const m=members.rows.map(r=>({...r,qualification:r.checkins>=1?'activity_qualified':'signup_only',verified_identity:false}));
  const providers=['torox','bitlabs','ayet','tremendous'].map(p=>{
