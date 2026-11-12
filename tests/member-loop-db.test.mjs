@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
-import {setupMemberLoop,activity,game,claimChallenge,memberJourney,referralOverview} from '../src/member-loop.mjs';
+import {setupMemberLoop,activity,game,claimChallenge,memberJourney,referralOverview,activationFunnel} from '../src/member-loop.mjs';
 import {setupCompanyOS,createWork,runOne} from '../src/company-os/engine.mjs';
 import {setupEconomics,recordFinance,financeOverview} from '../src/economics.mjs';
 import {discover} from '../src/company-os/opportunities.mjs';
@@ -14,6 +14,12 @@ test('Postgres member progression, financial evidence and durable follow-on exec
  const id='11111111-1111-4111-8111-111111111111';await pool.query('INSERT INTO earnloop_members(id,token_hash,code) VALUES($1,$2,$3)',[id,'test-only','abcdef123456']);const m={id,created_at:new Date(),xp:0};
  const referred='22222222-2222-4222-8222-222222222222';
  await pool.query('INSERT INTO earnloop_members(id,token_hash,code,referrer_id) VALUES($1,$2,$3,$4)',[referred,'referred-test-only','fedcba654321',id]);
+ const before=await activationFunnel(pool);
+ assert.equal(before.signups,2);
+ assert.equal(before.activated,0);
+ assert.equal(before.activation_rate,0);
+ assert.equal(before.revenue_proven,false);
+ assert.equal(before.counts_unique_people,false);
  let referrals=await referralOverview(pool,id);
  assert.equal(referrals.joined,1);
  assert.equal(referrals.activity_qualified,0);
@@ -28,6 +34,15 @@ test('Postgres member progression, financial evidence and durable follow-on exec
  assert.equal(referrals.payable,false);
  assert.equal(referrals.identity_verified,false);
  assert.equal(referrals.cash_reward_minor,0);
+ const realActivation=await activationFunnel(pool);
+ assert.equal(realActivation.signups,2);
+ assert.equal(realActivation.checked_in,1);
+ assert.equal(realActivation.played,1);
+ assert.equal(realActivation.activated,1);
+ assert.equal(realActivation.activation_rate,0.5);
+ assert.equal(realActivation.counts_unique_people,false);
+ assert.equal(realActivation.cash_payouts_enabled,false);
+ assert.match(server,/route==='\\/api\\/company-os\\/activation'/);
 
  await assert.rejects(()=>claimChallenge(pool,m),/seven/);
  const round=await game(pool,m);const nums=round.question.match(/\d+/g).map(Number);assert.equal((await game(pool,m,nums[0]+nums[1])).xp,10);await assert.rejects(()=>game(pool,m,nums[0]+nums[1]),/finished/);
