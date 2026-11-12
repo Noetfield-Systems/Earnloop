@@ -46,6 +46,7 @@ test('signed Torox conversion is a source report, never spendable cash',()=>{
   assert.equal(event.publisherPayoutReported,'3.25');
   assert.equal(event.amountUnits,'250.50');
   url.searchParams.set('amount','-250.50');
+  url.searchParams.set('payout','-3.25');
   assert.equal(parseToroxPostback(url,env).reversal,true);
   url.searchParams.set('amount','250.50');
   assert.throws(()=>parseToroxPostback(url,env),/INCONSISTENT_REVERSAL/);
