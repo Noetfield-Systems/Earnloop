@@ -42,7 +42,7 @@ test('Postgres member progression, financial evidence and durable follow-on exec
  assert.equal(realActivation.activation_rate,0.5);
  assert.equal(realActivation.counts_unique_people,false);
  assert.equal(realActivation.cash_payouts_enabled,false);
- assert.match(server,/route==='\\/api\\/company-os\\/activation'/);
+ assert.ok(server.includes("route==='/api/company-os/activation'"));
 
  await assert.rejects(()=>claimChallenge(pool,m),/seven/);
  const round=await game(pool,m);const nums=round.question.match(/\d+/g).map(Number);assert.equal((await game(pool,m,nums[0]+nums[1])).xp,10);await assert.rejects(()=>game(pool,m,nums[0]+nums[1]),/finished/);
