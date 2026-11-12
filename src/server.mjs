@@ -14,6 +14,7 @@ import {REPLICATION_TARGETS,nextCommercialAction} from './company-os/replication
 import {assessCompanyOutcome} from './company-os/shared-evidence-gate.mjs';
 import {toroxConfigured,createToroxWallSession,parseToroxPostback} from './torox.mjs';
 import {recordToroxPostback} from './torox-record.mjs';
+import {tremendousConfigured,readTremendousFunding,readTremendousProducts} from './tremendous.mjs';
 import {toroxApiConfigured,listToroxOffers,createToroxOfferClick} from './torox-api.mjs';
 import {setupOperations,getOperations,memberOffers,trackMember,requestRedemption,memberRedemptions,operate} from './operations.mjs';
 
@@ -185,6 +186,20 @@ async function server(req,res){
  }
  if(route.startsWith('/api/company-os/')){
   if(!admin(req)) return fail(res,401,'Administrator authorization required');
+  if(method==='GET'&&route==='/api/company-os/tremendous/readiness'){
+   if(!tremendousConfigured())return fail(res,503,'Tremendous API credentials not configured');
+   try{return send(res,200,await readTremendousFunding());}
+   catch(e){return fail(res,502,e.message==='TREMENDOUS_BALANCE_UNAVAILABLE'?'Tremendous balance not available':'Tremendous funding source unavailable');}
+  }
+  if(method==='GET'&&route==='/api/company-os/tremendous/products'){
+   if(!tremendousConfigured())return fail(res,503,'Tremendous API credentials not configured');
+   try{
+    return send(res,200,await readTremendousProducts({
+     country:String(url.searchParams.get('country')||'').toUpperCase(),
+     currency:String(url.searchParams.get('currency')||'').toUpperCase()}));
+   }catch(e){return fail(res,e.message==='INVALID_CATALOG_FILTER'?400:502,
+    e.message==='INVALID_CATALOG_FILTER'?'Specify an ISO-2 country and ISO-3 currency':'Tremendous catalog unavailable');}
+  }
   if(method==='GET'&&route==='/api/company-os/operations')return send(res,200,await getOperations(pool));
   if(method==='POST'&&route==='/api/company-os/operations'){
    const origin=req.headers.origin;if(origin&&new URL(origin).host!==req.headers.host)return fail(res,403,'Origin mismatch');
