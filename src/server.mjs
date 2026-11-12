@@ -1,4 +1,4 @@
-import {setupMemberLoop,activity,memberJourney,claimChallenge,game,referralOverview} from './member-loop.mjs';
+import {setupMemberLoop,activity,memberJourney,claimChallenge,game,referralOverview,activationFunnel} from './member-loop.mjs';
 import {setupEconomics,recordFinance,financeOverview} from './economics.mjs';
 import {opportunityOverview} from './company-os/opportunities.mjs';
 import http from 'node:http';
@@ -200,6 +200,7 @@ async function server(req,res){
    }catch(e){return fail(res,e.message==='INVALID_CATALOG_FILTER'?400:502,
     e.message==='INVALID_CATALOG_FILTER'?'Specify an ISO-2 country and ISO-3 currency':'Tremendous catalog unavailable');}
   }
+  if(method==='GET'&&route==='/api/company-os/activation')return send(res,200,await activationFunnel(pool));
   if(method==='GET'&&route==='/api/company-os/operations')return send(res,200,await getOperations(pool));
   if(method==='POST'&&route==='/api/company-os/operations'){
    const origin=req.headers.origin;if(origin&&new URL(origin).host!==req.headers.host)return fail(res,403,'Origin mismatch');
