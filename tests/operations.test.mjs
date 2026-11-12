@@ -1,12 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PGlite} from '@electric-sql/pglite';
-import {setupOperations,operate,memberOffers,provisionalMargin} from '../src/operations.mjs';
+import {setupOperations,operate,memberOffers,provisionalMargin,sourceRewardCreditReadiness} from '../src/operations.mjs';
 
 const charges={provider_share:{amount_minor:40,currency:'USD'},user_reward:{amount_minor:120,currency:'USD'},
  referral:{amount_minor:10,currency:'USD'},processing:{amount_minor:8,currency:'USD'},
  fulfillment:{amount_minor:5,currency:'USD'},acquisition:{amount_minor:30,currency:'USD'},
  reversal:{amount_minor:0,currency:'USD'},support:{amount_minor:4,currency:'USD'}};
+
+test('actual projected partner event cannot mint reward eligibility without independent cash and callback evidence',()=>{
+ const env={TOROX_PUBLISHER_APPROVED:'true',TOROX_APPROVAL_REFERENCE:'approval-source',
+  TOROX_PLACEMENT_ID:'test-placement',TOROX_APP_TOKEN:'t'.repeat(24),TOROX_MODE:'staging'};
+ const projected={provider:'torox',reversed:false,gross_minor:800,reward_minor:200,
+  cash_verified:true,callbackVerified:true,economics:{expenses:{user_reward:200}}};
+ const result=sourceRewardCreditReadiness(projected,env);
+ assert.equal(result.state,'PARTNER_CALLBACK_UNVERIFIED');
+ assert.equal(result.creditReady,false);
+ assert.equal(result.payoutReady,false);
+ assert.equal(result.independently_collected_cash,false);
+ assert.equal(result.evidence_state,'SOURCE_REPORTED_UNVERIFIED');
+});
+test('unapproved provider and absent reward liability are correctly rejected',()=>{
+ const env={TOROX_PUBLISHER_APPROVED:'false'};
+ const event={provider:'torox',reversed:false,gross_minor:800,reward_minor:200,
+  economics:{expenses:{user_reward:200}}};
+ assert.equal(sourceRewardCreditReadiness(event,env).state,'PUBLISHER_NOT_APPROVED');
+ assert.equal(sourceRewardCreditReadiness({...event,reward_minor:null,economics:{expenses:{}}},env).state,'INVALID_ACCOUNTING');
+ assert.equal(sourceRewardCreditReadiness({...event,reversed:true},env).payoutReady,false);
+ assert.equal(sourceRewardCreditReadiness({...event,gross_minor:'not-money'},env).creditReady,false);
+});
 
 test('reported conversion cannot be verified profit even with a full reported cost schedule',()=>{
  const p=provisionalMargin({currency:'USD',gross_minor:250,reward_minor:null},charges);
