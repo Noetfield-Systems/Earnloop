@@ -25,6 +25,19 @@
     </div>
   </div>
 </section>
+<section class="member-section" id="nativeCatalogSection" hidden aria-labelledby="nativeCatalogTitle">
+  <div class="section-head"><h2 id="nativeCatalogTitle">Available partner games and milestones</h2><span>Torox API · filtered inventory</span></div>
+  <div class="panel">
+    <p>Choose your actual country and device to discover partner-supplied offers. Availability, qualifying milestones, review delays and eligibility are determined by the provider. Source-reported units are not cash.</p>
+    <form id="nativeCatalogForm" class="form-grid">
+      <div><label for="nativeCountry">Country (2-letter ISO code)</label><input id="nativeCountry" required minlength="2" maxlength="2" pattern="[A-Za-z]{2}" placeholder="CA" autocomplete="country"></div>
+      <div><label for="nativeDevice">Device</label><select id="nativeDevice"><option value="android">Android</option><option value="ios">iPhone / iPad</option><option value="web">Desktop web</option></select></div>
+      <div><label>Partner availability</label><button class="action" type="submit">Find actual offers</button></div>
+    </form>
+    <p id="nativeCatalogStatus" role="status">Select your country and device to load actual partner offers.</p>
+  </div>
+  <div id="nativeCatalogOffers" class="three-col" aria-live="polite"></div>
+</section>
 <section class="member-section"><div class="section-head"><h2>Redemption requests</h2><span>Funding not yet enabled</span></div><div class="two-col">
 <div class="panel"><h3>Request funding review</h3><p>Earnloop currently has no verified cash reward balance. This records an interest request only; it is not a withdrawal order or a promise to pay.</p><form id="redeemForm" class="form-grid"><div><label for="method">Preferred method</label><select id="method"><option value="gift_card">Gift card</option><option value="bank">Bank transfer</option><option value="other">Other</option></select></div><div><label for="currency">Currency</label><select id="currency"><option value="CAD">CAD</option><option value="USD">USD</option></select></div><div><label for="amount">Requested amount · minor units</label><input id="amount" type="number" min="1" max="100000000" required placeholder="2500 = 25.00"></div><div class="span3"><label><input type="checkbox" id="ack" required> I understand this is an unfunded interest request, not a payable cash claim.</label></div><div class="span3"><button type="submit" class="primary">Record request</button></div></form><p id="redemptionMessage" role="status"></p></div>
 <div class="panel"><h3>Your redemption history</h3><div id="requests" class="mini-grid"><p>Join to view actual records.</p></div></div></div></section>
