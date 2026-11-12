@@ -47,6 +47,9 @@ test('signed Torox conversion is a source report, never spendable cash',()=>{
   assert.equal(event.amountUnits,'250.50');
   url.searchParams.set('amount','-250.50');
   assert.equal(parseToroxPostback(url,env).reversal,true);
+  url.searchParams.set('amount','250.50');
+  assert.throws(()=>parseToroxPostback(url,env),/INCONSISTENT_REVERSAL/);
+  url.searchParams.set('amount','-250.50');
   url.searchParams.set('sig','0'.repeat(32));
   assert.throws(()=>parseToroxPostback(url,env),/BAD_POSTBACK_SIGNATURE/);
 });
