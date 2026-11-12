@@ -4,6 +4,7 @@ import {setupMemberLoop,activity,game,claimChallenge,memberJourney,referralOverv
 import {setupCompanyOS,createWork,runOne} from '../src/company-os/engine.mjs';
 import {setupEconomics,recordFinance,financeOverview} from '../src/economics.mjs';
 import {discover} from '../src/company-os/opportunities.mjs';
+import {recordToroxPostback} from '../src/torox-record.mjs';
 test('Postgres member progression, financial evidence and durable follow-on execution',async()=>{
  const db=new PGlite();const pool={async query(sql,args){if(!args&&sql.trim().split(';').filter(Boolean).length>1){await db.exec(sql);return {rows:[],rowCount:0};}const r=await db.query(sql,args);return {...r,rowCount:r.affectedRows??r.rows.length};},async connect(){return {...this,release(){}};}};
  try{
@@ -37,6 +38,10 @@ test('Postgres member progression, financial evidence and durable follow-on exec
  const data=await discover(pool,{fetcher:async()=>new Response('public docs'),env:{}});assert.equal(data.candidates.length,5);assert.equal(data.candidates.find(x=>x.candidate_id==='torox').ranking.feasible,false);
  const w=await createWork(pool,{type:'publish_growth_campaign',objective:'Activate noncash founding challenge',idempotency_key:'test:campaign'});assert.equal((await runOne(pool)).state,'completed');assert.equal((await pool.query('SELECT state FROM earnloop_campaigns')).rows[0].state,'active');assert.equal((await pool.query("SELECT count(*)::int n FROM earnloop_os_work WHERE type='growth_diagnosis' AND state='queued'")).rows[0].n,1);assert.equal((await runOne(pool)).state,'completed');
  assert.equal((await createWork(pool,{type:'publish_growth_campaign',objective:'Activate noncash founding challenge',idempotency_key:'test:campaign'})).id,w.id);
- const sql=server.match(/`(INSERT INTO earnloop_torox_postbacks[\s\S]*?)`,/)[1];await pool.query(sql,['conv1',id,'offer1','10','1',false,'reported_unsettled']);await pool.query(sql,['conv1',id,'offer1','-10','-1',true,'reversal_reported']);await pool.query(sql,['conv1',id,'offer1','10','1',false,'reported_unsettled']);assert.equal((await pool.query('SELECT status FROM earnloop_torox_postbacks')).rows[0].status,'reversal_reported');
+ const cb={eventId:'conv1',memberId:id,offerId:'offer1',amountUnits:'10',publisherPayoutReported:'1',reversal:false};
+ await recordToroxPostback(pool,cb);
+ await recordToroxPostback(pool,{...cb,eventId:'conv2',amountUnits:'-10',publisherPayoutReported:'-1',reversal:true});
+ assert.equal((await pool.query("SELECT count(*)::int n FROM earnloop_torox_postbacks WHERE status='reversal_reported'")).rows[0].n,1);
+ assert.equal((await pool.query('SELECT count(*)::int n FROM earnloop_torox_postbacks')).rows[0].n,2);
  }finally{await db.close();}
 });
