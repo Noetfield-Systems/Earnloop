@@ -36,6 +36,50 @@ export async function referralOverview(pool,referrerId){
          criterion:'one check-in and one completed puzzle by the invitee',
          identity_verified:false,payable:false,cash_reward_minor:0};
 }
+/**
+ * Read-only activation evidence from the existing member/activity tables.
+ * "Member" means a stored session, not an independently verified human.
+ * Activation requires both a UTC check-in and a completed puzzle; a mere
+ * signup, repeated event, or virtual XP credit never becomes cash revenue.
+ */
+export async function activationFunnel(pool){
+ const r=await pool.query(`
+   SELECT COUNT(*)::int AS signups,
+          COUNT(*) FILTER(WHERE m.created_at >= NOW()-INTERVAL '7 days')::int AS signups_7d,
+          COUNT(*) FILTER(WHERE EXISTS (
+            SELECT 1 FROM earnloop_activity a
+            WHERE a.member_id=m.id AND a.kind='daily_checkin'
+          ))::int AS checked_in,
+          COUNT(*) FILTER(WHERE EXISTS (
+            SELECT 1 FROM earnloop_activity a
+            WHERE a.member_id=m.id AND a.kind='puzzle_completed'
+          ))::int AS played,
+          COUNT(*) FILTER(WHERE EXISTS (
+            SELECT 1 FROM earnloop_activity a
+            WHERE a.member_id=m.id AND a.kind='daily_checkin'
+          ) AND EXISTS (
+            SELECT 1 FROM earnloop_activity a
+            WHERE a.member_id=m.id AND a.kind='puzzle_completed'
+          ))::int AS activated,
+          COUNT(*) FILTER(WHERE m.created_at >= NOW()-INTERVAL '7 days'
+            AND EXISTS (SELECT 1 FROM earnloop_activity a
+                        WHERE a.member_id=m.id AND a.kind='daily_checkin')
+            AND EXISTS (SELECT 1 FROM earnloop_activity a
+                        WHERE a.member_id=m.id AND a.kind='puzzle_completed')
+          )::int AS activated_7d
+   FROM earnloop_members m
+ `);
+ const v=r.rows[0];
+ const signups=Number(v.signups)||0,activated=Number(v.activated)||0;
+ const signups7d=Number(v.signups_7d)||0,activated7d=Number(v.activated_7d)||0;
+ return {schema:'earnloop.member-activation.v1',source:'POSTGRES_EARNLOOP_MEMBERS_AND_ACTIVITY',
+   signups,checked_in:Number(v.checked_in)||0,played:Number(v.played)||0,
+   activated,activation_rate:signups?Number((activated/signups).toFixed(4)):null,
+   signups_7d:signups7d,activated_7d:activated7d,
+   activation_rate_7d:signups7d?Number((activated7d/signups7d).toFixed(4)):null,
+   activation_definition:'member has at least one daily_checkin AND one puzzle_completed',
+   counts_unique_people:false,revenue_proven:false,cash_payouts_enabled:false};
+}
 export async function publishCampaign(pool){await pool.query("INSERT INTO earnloop_campaigns(id,title,state) VALUES('founding-seven','Seven days of momentum','active') ON CONFLICT DO NOTHING");return {kind:'campaign_published',path:'/challenge',campaign_id:'founding-seven',reward:'noncash XP',completion_state:'implemented',external_action_executed:false};}
 export async function memberJourney(pool,m){
  const rows=await pool.query('SELECT kind,details,created_at FROM earnloop_activity WHERE member_id=$1 ORDER BY created_at DESC LIMIT 60',[m.id]);
