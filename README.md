@@ -30,3 +30,7 @@ See `docs/FOUNDER-GOAL.md`, `docs/COMPANY-OS.md` and `docs/MIGRATION.md`. Work r
 
 ## Publish to the product's own GitHub repository
 Canonical product repository: `Noetfield-Systems/Earnloop`. Railway source must point to its `main` branch and root directory `/`. Keep the existing PostgreSQL volume, database connection, member sessions, and public domain unchanged.
+
+### Native Torox catalog (optional, separately approved)
+
+When `TOROX_API_ENABLED=true` AND the normal publisher approval credentials are configured, Earnloop can show genuine geo/device-filtered Torox API campaigns at `/earn` and request member-specific click URLs. Server-only endpoints are `GET /api/offerwall/catalog?geo=CA&os=android` and `POST /api/offerwall/click`. Campaign amounts are **provider-configured units**, not verified CAD/USD wallet balances. Partner API access must be enabled by Torox; the hosted Offerwall integration remains the launch fallback. Never set approval flags without real access. Empty partner inventory may be an API error, not proof of zero offers.

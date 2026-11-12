@@ -14,6 +14,7 @@ import {REPLICATION_TARGETS,nextCommercialAction} from './company-os/replication
 import {assessCompanyOutcome} from './company-os/shared-evidence-gate.mjs';
 import {toroxConfigured,createToroxWallSession,parseToroxPostback} from './torox.mjs';
 import {recordToroxPostback} from './torox-record.mjs';
+import {toroxApiConfigured,listToroxOffers,createToroxOfferClick} from './torox-api.mjs';
 import {setupOperations,getOperations,memberOffers,trackMember,requestRedemption,memberRedemptions,operate} from './operations.mjs';
 
 const PORT=Number(process.env.PORT||3000);
@@ -108,7 +109,7 @@ async function server(req,res){
  if(method==='GET'&&route==='/api/offerwall/status')
   return send(res,200,{provider:'torox',enabled:toroxConfigured(),
    status:toroxConfigured()?'PUBLISHER_APPROVED_SESSION_AVAILABLE':'PUBLISHER_APPROVAL_REQUIRED',
-   payouts_enabled:false,source_reports_are_collected_revenue:false});
+   payouts_enabled:false,native_catalog_available:toroxApiConfigured(),source_reports_are_collected_revenue:false});
  if(method==='GET'&&route==='/api/offerwall/session'){
   if(!toroxConfigured())return fail(res,503,'Publisher approval pending');
   if(!rate(req,10))return fail(res,429,'Rate limit exceeded');
@@ -117,6 +118,34 @@ async function server(req,res){
     await activity(pool,m.id,'offer_started','offerwall:'+crypto.randomUUID(),{provider:'torox'});
     return send(res,200,{wall_url,provider:'torox',payouts_enabled:false});}
   catch{return fail(res,502,'Partner session temporarily unavailable');}
+ }
+ if(method==='GET'&&route==='/api/offerwall/catalog'){
+  if(!toroxApiConfigured())return fail(res,503,'Native provider API access pending');
+  if(!rate(req,12))return fail(res,429,'Rate limit exceeded');
+  try{
+   const geo=String(url.searchParams.get('geo')||'').toUpperCase();
+   const os=String(url.searchParams.get('os')||'').toLowerCase();
+   return send(res,200,await listToroxOffers({geo,os}));
+  }catch(e){
+   return fail(res,e.message==='INVALID_OFFER_ELIGIBILITY_FILTER'?400:502,e.message);
+  }
+ }
+ if(method==='POST'&&route==='/api/offerwall/click'){
+  if(!toroxApiConfigured())return fail(res,503,'Native provider API access pending');
+  const origin=req.headers.origin;
+  if(origin&&new URL(origin).host!==req.headers.host)return fail(res,403,'Origin mismatch');
+  if(!rate(req,12))return fail(res,429,'Rate limit exceeded');
+  const m=await member(req);if(!m)return fail(res,401,'Join first');
+  const {value}=await body(req,2048);
+  try{
+   const geo=String(value.geo||'').toUpperCase();
+   const campaignId=String(value.campaign_id||'');
+   const click_url=await createToroxOfferClick(m.id,{geo,campaignId});
+   await activity(pool,m.id,'offer_started','torox_api_click:'+crypto.randomUUID(),{provider:'torox',campaign_id:campaignId,geo});
+   return send(res,200,{click_url,provider:'torox',cash_awarded:false});
+  }catch(e){
+   return fail(res,e.message.startsWith('INVALID_')?400:502,e.message);
+  }
  }
  if(method==='GET'&&route==='/api/partner/torox/postback'){
   if(!toroxConfigured())return send(res,503,'0','text/plain; charset=utf-8');
