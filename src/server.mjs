@@ -13,6 +13,7 @@ import {setupCommercial,listCommercial,approveCommercial,configureContact,dispat
 import {REPLICATION_TARGETS,nextCommercialAction} from './company-os/replication.mjs';
 import {assessCompanyOutcome} from './company-os/shared-evidence-gate.mjs';
 import {toroxConfigured,createToroxWallSession,parseToroxPostback} from './torox.mjs';
+import {recordToroxPostback} from './torox-record.mjs';
 import {setupOperations,getOperations,memberOffers,trackMember,requestRedemption,memberRedemptions,operate} from './operations.mjs';
 
 const PORT=Number(process.env.PORT||3000);
@@ -121,10 +122,7 @@ async function server(req,res){
   if(!toroxConfigured())return send(res,503,'0','text/plain; charset=utf-8');
   try{
    const e=parseToroxPostback(url);
-   await pool.query(
-    `INSERT INTO earnloop_torox_postbacks(event_id,member_id,offer_id,amount_units,publisher_payout_reported_usd,reversal,status) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(provider,event_id) DO UPDATE SET reversal=TRUE,status='reversal_reported' WHERE EXCLUDED.reversal=TRUE AND earnloop_torox_postbacks.member_id=EXCLUDED.member_id AND earnloop_torox_postbacks.offer_id=EXCLUDED.offer_id`,
-    [e.eventId,e.memberId,e.offerId,e.amountUnits,e.publisherPayoutReported,
-     e.reversal,e.reversal?'reversal_reported':'reported_unsettled']);
+   await recordToroxPostback(pool,e);
    // Provider requires "1"; no source callback creates cash or user withdrawal credit.
    return send(res,200,'1','text/plain; charset=utf-8');
   }catch{return send(res,400,'0','text/plain; charset=utf-8');}
