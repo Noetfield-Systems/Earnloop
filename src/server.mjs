@@ -62,7 +62,7 @@ async function body(req,max=12000){
  let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>max)throw Object.assign(Error('Request too large'),{status:413});}
  try {return {value:JSON.parse(raw||'{}'),raw};}catch{throw Object.assign(Error('Malformed JSON'),{status:400});}
 }
-async function member(req){const token=cookie(req);if(!token)return null;const r=await pool.query('SELECT id,code,xp,last_checkin,checkin_streak,created_at FROM earnloop_members WHERE token_hash=$1',[sha(token)]);return r.rows[0]||null;}
+async function member(req){const token=cookie(req);if(!token)return null;const r=await pool.query('SELECT id,code,xp,last_checkin,checkin_streak,created_at,referrer_id FROM earnloop_members WHERE token_hash=$1',[sha(token)]);return r.rows[0]||null;}
 async function init(){
  await pool.query(`CREATE TABLE IF NOT EXISTS earnloop_members(
    id UUID PRIMARY KEY,token_hash TEXT NOT NULL UNIQUE,code TEXT NOT NULL UNIQUE,
@@ -169,7 +169,7 @@ async function server(req,res){
   const referrals=await referralOverview(pool,m.id);
   return send(res,200,{member:{id:m.id,code:m.code,xp:m.xp,last_checkin:m.last_checkin,
    unverified_invites:referrals.joined,activity_qualified_invites:referrals.activity_qualified,
-   streak:m.checkin_streak},referrals,cash_cents:0,cash_payouts_enabled:false});
+   invited_by_member:!!m.referrer_id,streak:m.checkin_streak},referrals,cash_cents:0,cash_payouts_enabled:false});
  }
  if(method==='GET'&&route==='/api/earn/offers')return send(res,200,await memberOffers(pool));
  if(method==='GET'&&route==='/api/earn/redemptions'){
@@ -259,7 +259,7 @@ async function server(req,res){
    }catch(e){return fail(res,400,e.message);}
   }
   if(route==='/api/start'){
-   const old=await member(req);if(old)return send(res,200,{member:{id:old.id,code:old.code,xp:old.xp}});
+   const old=await member(req);if(old)return send(res,200,{member:{id:old.id,code:old.code,xp:old.xp},via_invite:!!old.referrer_id});
    const {value}=await body(req);const ref=String(value.ref||'').trim().toLowerCase().slice(0,30);
    const par=/^[a-f0-9]{12}$/.test(ref)?await pool.query('SELECT id FROM earnloop_members WHERE code=$1',[ref]):{rows:[]};
    const token=random(32),id=crypto.randomUUID(),code=random(6);
@@ -267,7 +267,7 @@ async function server(req,res){
    await c.query('INSERT INTO earnloop_members(id,token_hash,code,referrer_id) VALUES($1,$2,$3,$4)',[id,sha(token),code,par.rows[0]?.id||null]);
    await activity(c,id,'member_created','signup',{source:/^[a-zA-Z0-9_-]{1,40}$/.test(value.source||'')?value.source:(par.rows[0]?'referral':'direct')});
    await c.query('COMMIT');}catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
-   return send(res,201,{member:{id,code,xp:0}},'application/json; charset=utf-8',{'set-cookie':`el_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=15552000`});
+   return send(res,201,{member:{id,code,xp:0},via_invite:!!par.rows[0]?.id},'application/json; charset=utf-8',{'set-cookie':`el_session=${token}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=15552000`});
   }
   if(route==='/api/checkin'){
    const m=await member(req);if(!m)return fail(res,401,'Join first');
