@@ -60,6 +60,22 @@ async function load(){
     reports.append(el('p','Join to see your conversion and reversal reports.'));
     history.append(el('p','Join to open and track support requests.'));
   }
+  const balanceBox=$('rewardBalance');balanceBox.replaceChildren();
+  if(member){
+    const status=await api('/api/earn/balance');
+    const source=status.source,cash=status.cash;
+    balanceBox.append(el('h3','Your actual reward status'));
+    const overview=el('div',null,'mini-grid');
+    overview.append(
+      el('div','Conversion reports: '+source.conversions_reported,'item'),
+      el('div','Reversal reports: '+source.reversals_reported,'item'),
+      el('div','Net reported provider units: '+source.net_reported_units,'item'),
+      el('div','Confirmed cash rewards: '+(cash.confirmed_rewards_minor/100).toFixed(2)+' (currency not established)','item'),
+      el('div','Available for redemption: '+(cash.available_for_redemption_minor/100).toFixed(2)+' (not funded)','item')
+    );
+    balanceBox.append(overview,el('p','Provider units are NOT redeemable cash. Source reversals are independent reports awaiting reconciliation.'));
+    balanceBox.append(el('small','Status: '+cash.classification+' · Cash payouts require real advertiser settlement and prefunded fulfillment.'));
+  }else balanceBox.append(el('p','Join to see your source reports. There is no verified redeemable cash balance yet.'));
   const req=$('requests');req.replaceChildren();
   if(member){const d=await api('/api/earn/redemptions');for(const r of d.requests){req.append(el('div',r.state+' · '+r.currency+' '+(r.amount_minor/100).toFixed(2)+' · '+new Date(r.created_at).toLocaleDateString(),'item'));}if(!d.requests.length)req.append(el('p','No redemption-interest requests recorded.'));}
   else req.append(el('p','Create a session to view requests.'));
