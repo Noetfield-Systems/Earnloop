@@ -53,3 +53,18 @@ test('member referrals show engaged invitees separately from raw signups',()=>{
   assert.match(memberLoop,/kind='puzzle_completed'/);
   assert.match(memberLoop,/identity_verified:false,payable:false,cash_reward_minor:0/);
 });
+
+test('Earn discovery keeps working free earn, play and invite paths available without sponsored supply',()=>{
+  const html=read('public/earn.html');
+  const home=read('public/index.html');
+  const client=read('public/earn.js');
+  assert.match(html,/id="earn-next-actions"/);
+  for(const [href,target] of [['/#quests','id="quests"'],['/#play','id="play"'],['/#experience','id="experience"']]){
+    assert.ok(html.includes('href="'+href+'"'),'real next step links to '+href);
+    assert.ok(home.includes(target),'destination exists '+target);
+  }
+  assert.match(html,/A friend becomes activity-qualified only after checking in and completing a puzzle/);
+  assert.match(html,/Invites never create a cash reward/);
+  assert.match(html,/Free community activities · no cash promise/);
+  assert.match(client,/No paid partner offer inventory is available yet/);
+});
