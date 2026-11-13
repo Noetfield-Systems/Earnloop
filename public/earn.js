@@ -7,6 +7,7 @@ async function load(){
   const [profile,offers,providerStatus]=await Promise.all([api('/api/me'),api('/api/earn/offers'),api('/api/offerwall/status')]);
   $('nativeCatalogSection').hidden=providerStatus.native_catalog_available!==true;
   inventory=offers;member=profile.member;
+  let journey=null;
   const box=$('memberState');box.replaceChildren();
   box.append(el('h3',member?'Your account · Explorer '+member.code.slice(-4).toUpperCase():'Start as a founding member'));
   box.append(el('p',member?'Noncash XP: '+member.xp+' · Activity is not yet identity verification.':'Create a private session to participate. You may join the mailing list separately on the homepage.'));
@@ -34,7 +35,7 @@ async function load(){
   const reports=$('partnerReports'),history=$('supportHistory');
   reports.replaceChildren();history.replaceChildren();
   if(member){
-    const journey=await api('/api/journey');
+    journey=await api('/api/journey');
     for(const r of journey.partner_reports||[]){
       const item=el('div',null,'item');
       const kind=r.reversal?'Reversal reported':'Conversion reported';
@@ -55,7 +56,9 @@ async function load(){
   const req=$('requests');req.replaceChildren();
   if(member){const d=await api('/api/earn/redemptions');for(const r of d.requests){req.append(el('div',r.state+' · '+r.currency+' '+(r.amount_minor/100).toFixed(2)+' · '+new Date(r.created_at).toLocaleDateString(),'item'));}if(!d.requests.length)req.append(el('p','No redemption-interest requests recorded.'));}
   else req.append(el('p','Create a session to view requests.'));
- }catch(e){$('memberState').textContent='Unable to load live member data: '+e.message;}
+  document.dispatchEvent(new CustomEvent('earnloop:member-journey',{detail:{member,journey,offerCount:offers.offers.length,offerwall:providerStatus}}));
+ }catch(e){$('memberState').textContent='Unable to load live member data: '+e.message;
+  document.dispatchEvent(new CustomEvent('earnloop:member-journey',{detail:{error:e.message}}));}
 }
 $('redeemForm').addEventListener('submit',async e=>{e.preventDefault();if(!member){$('redemptionMessage').textContent='Join first.';return;}
  const b=e.submitter;b.disabled=true;try{
