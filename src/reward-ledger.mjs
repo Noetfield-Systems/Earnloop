@@ -60,7 +60,7 @@ export async function projectToroxSourceEntry(client,eventId) {
   const existing=await client.query(
     'SELECT event_id FROM earnloop_reward_source_entries WHERE provider=$1 AND event_id=$2',
     ['torox',eventId]);
-  if(!existing.rowCount) throw Error('REWARD_SOURCE_PROJECTION_MISSING');
+  if(!existing.rows[0]) throw Error('REWARD_SOURCE_PROJECTION_MISSING');
   return false;
 }
 
