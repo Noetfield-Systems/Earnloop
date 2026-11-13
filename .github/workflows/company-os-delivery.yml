@@ -2,7 +2,7 @@ name: SINA Company OS - governed Earnloop code delivery
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/company-os-delivery.yml", "scripts/company-os-closeout.py"]
+    paths: [".github/workflows/company-os-delivery.yml", "scripts/company-os-closeout.py", "scripts/company-os-release.py"]
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
@@ -90,6 +90,8 @@ jobs:
 
   closeout:
     needs: [candidate, readback]
+    outputs:
+      state: ${{ steps.verified.outputs.state }}
     if: ${{ always() && needs.candidate.result == 'success' && (needs.readback.result == 'success' || needs.readback.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -125,3 +127,52 @@ jobs:
           path: company-delivery-verification.json
           if-no-files-found: ignore
           retention-days: 90
+
+  # Fallback for an org where GITHUB_TOKEN can push checked code but is
+  # explicitly prohibited from creating PRs. Only new generated helper + test
+  # paths, exact immutable source, independently signed verifier receipt and
+  # GitHub normal branch protection are permitted. No force-push or bypass.
+  release:
+    needs: [candidate, readback, closeout]
+    if: >-
+      ${{ always() && needs.candidate.result == 'success' &&
+          needs.readback.result == 'success' &&
+          needs.closeout.result == 'success' &&
+          needs.closeout.outputs.state == 'TECHNICALLY_VERIFIED' &&
+          needs.candidate.outputs.head_sha != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/download-artifact@v4
+        with:
+          name: sina-earnloop-workpacket-${{ github.run_id }}
+          path: /tmp/sina-company-evidence
+      - uses: actions/download-artifact@v4
+        with:
+          name: sina-earnloop-verification-${{ github.run_id }}
+          path: /tmp/sina-company-verified
+      - name: Install existing application dependencies
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Reverify the signed evidence and fast-forward a generated-only candidate
+        env:
+          SINA_EVIDENCE_FILE: /tmp/sina-company-evidence/company-delivery-evidence.json
+          SINA_RECEIPT_FILE: /tmp/sina-company-verified/company-delivery-verification.json
+        run: python3 scripts/company-os-release.py
+      - name: Verify generated-only release authorization guards
+        if: always()
+        run: python3 -m unittest discover -s tests -p 'test_company_os_release.py' -v
