@@ -8,6 +8,8 @@ on:
   workflow_dispatch: {}
   issues:
     types: [opened]
+  pull_request:
+    paths: [".github/workflows/company-os-delivery.yml", "scripts/company-os-release.py", "tests/test_company_os_release.py"]
 permissions:
   contents: read
 concurrency:
@@ -15,9 +17,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-policy-tests:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test generated-only release policy
+        run: python3 -m unittest discover -s tests -p 'test_company_os_release.py' -v
+
   candidate:
     if: >-
-      ${{ github.event_name != 'issues' || (github.event.issue.title == 'SINA: Run Company OS Delivery' && github.event.issue.user.login == 'kazemnezhadsina144-dot') }}
+      ${{ github.event_name != 'pull_request' &&
+          (github.event_name != 'issues' ||
+            (github.event.issue.title == 'SINA: Run Company OS Delivery' &&
+             github.event.issue.user.login == 'kazemnezhadsina144-dot')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
@@ -139,7 +158,8 @@ jobs:
           needs.readback.result == 'success' &&
           needs.closeout.result == 'success' &&
           needs.closeout.outputs.state == 'TECHNICALLY_VERIFIED' &&
-          needs.candidate.outputs.head_sha != '' }}
+          needs.candidate.outputs.head_sha != '' &&
+          needs.candidate.outputs.state == 'BRANCH_READY' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
