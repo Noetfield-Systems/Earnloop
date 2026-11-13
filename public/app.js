@@ -15,6 +15,21 @@ function showInviteEntry(member){
  if(confirmed)entry.textContent='You joined through a member invitation. Check in, play and invite a friend — community XP is non-cash.';
  else if(!member&&pending)entry.textContent='A member invitation link was detected. Join free to confirm attribution; no referral reward is promised.';
 }
+function preserveInviteAcrossEarnLinks(){
+  // Carry only a syntactically valid invitation code to same-origin /earn.
+  // The server independently verifies inviter ownership at enrollment.
+  const params=new URL(location.href).searchParams;
+  const ref=(params.get('ref')||'').trim().toLowerCase();
+  if(!/^[a-f0-9]{12}$/.test(ref)||!document.querySelectorAll)return;
+  const source=(params.get('utm_source')||'').trim();
+  for(const anchor of document.querySelectorAll('a[href="/earn"]')){
+    const target=new URL(anchor.getAttribute('href'),location.origin);
+    target.searchParams.set('ref',ref);
+    if(/^[a-zA-Z0-9_-]{1,40}$/.test(source))target.searchParams.set('utm_source',source);
+    anchor.setAttribute('href',target.pathname+target.search);
+  }
+}
+preserveInviteAcrossEarnLinks();
 async function refresh(){
  try{
   const [stats,identity,board,offerwall]=await Promise.all([api('/api/stats'),api('/api/me'),api('/api/leaderboard'),api('/api/offerwall/status')]);
