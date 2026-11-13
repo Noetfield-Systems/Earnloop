@@ -2,6 +2,13 @@ const $=id=>document.getElementById(id);
 let member=null,inventory=null;
 function el(tag,text,cls){const n=document.createElement(tag);if(text!=null)n.textContent=String(text);if(cls)n.className=cls;return n;}
 async function api(url,method='GET',body){const r=await fetch(url,{method,headers:{'content-type':'application/json'},body:body?JSON.stringify(body):undefined,credentials:'same-origin'});let j;try{j=await r.json()}catch{throw Error('Unexpected server response')}if(!r.ok)throw Error(j.error||'Request failed');return j;}
+function signupAttribution(defaultSource='earn'){
+  const params=new URL(location.href).searchParams;
+  const ref=(params.get('ref')||'').trim().toLowerCase();
+  const source=(params.get('utm_source')||'').trim();
+  return {source:/^[a-zA-Z0-9_-]{1,40}$/.test(source)?source:defaultSource,
+    ...(/^[a-f0-9]{12}$/.test(ref)?{ref}:{})};
+}
 async function load(){
  try{
   const [profile,offers,providerStatus]=await Promise.all([api('/api/me'),api('/api/earn/offers'),api('/api/offerwall/status')]);
@@ -11,7 +18,7 @@ async function load(){
   const box=$('memberState');box.replaceChildren();
   box.append(el('h3',member?'Your account · Explorer '+member.code.slice(-4).toUpperCase():'Start as a founding member'));
   box.append(el('p',member?'Noncash XP: '+member.xp+' · Activity is not yet identity verification.':'Create a private session to participate. You may join the mailing list separately on the homepage.'));
-  if(!member){const b=el('button','Create member session','primary');b.addEventListener('click',async()=>{b.disabled=true;try{await api('/api/start','POST',{source:'earn'});await load();}catch(e){box.append(el('p',e.message));}finally{b.disabled=false;}});box.append(b);}
+  if(!member){const b=el('button','Create member session','primary');b.addEventListener('click',async()=>{b.disabled=true;try{await api('/api/start','POST',signupAttribution());await load();}catch(e){box.append(el('p',e.message));}finally{b.disabled=false;}});box.append(b);}
   $('offerCount').textContent=offers.offers.length+' actual approved-source listings';
   const list=$('offers');list.replaceChildren();
   for(const offer of offers.offers){
@@ -101,7 +108,7 @@ async function loadNativeOffers(){
       button.addEventListener('click',async()=>{
         button.disabled=true;
         try{
-          if(!member)await api('/api/start','POST',{source:'native-offer'});
+          if(!member)await api('/api/start','POST',signupAttribution('native-offer'));
           const next=await api('/api/offerwall/click','POST',{geo,campaign_id:offer.campaign_id});
           const u=new URL(next.click_url);
           if(u.protocol!=='https:'||!(u.hostname==='torox.io'||u.hostname.endsWith('.torox.io')))throw Error('Unexpected partner destination');
