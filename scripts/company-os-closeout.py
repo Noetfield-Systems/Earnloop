@@ -28,5 +28,11 @@ def main():
     result=post(module.API+'/verify',receipt,token)
     if result.get('state')!='TECHNICALLY_VERIFIED': raise RuntimeError('VERIFICATION_NOT_RECORDED')
     Path('company-delivery-verification.json').write_text(json.dumps(receipt,sort_keys=True,indent=2))
+    # Only an independently signed and accepted technical verification may
+    # dispatch one more existing GitHub runner pass. No release permit implied.
+    output=os.environ.get('GITHUB_OUTPUT')
+    if output:
+        with open(output,'a',encoding='utf8') as stream:
+            stream.write('state=TECHNICALLY_VERIFIED\\n')
     print(json.dumps(result,sort_keys=True))
 if __name__=='__main__': main()

@@ -95,7 +95,7 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: read
-      actions: read
+      actions: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -110,9 +110,15 @@ jobs:
           name: sina-earnloop-workpacket-${{ github.run_id }}
           path: /tmp/sina-company-evidence
       - name: Verify GitHub provenance with isolated verifier and advance existing queue
+        id: verified
         env:
           SINA_EVIDENCE_FILE: /tmp/sina-company-evidence/company-delivery-evidence.json
         run: python3 scripts/company-os-closeout.py
+      - name: Start next canonical coding task without a new founder prompt
+        if: ${{ steps.verified.outputs.state == 'TECHNICALLY_VERIFIED' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run company-os-delivery.yml --ref main
       - uses: actions/upload-artifact@v4
         with:
           name: sina-earnloop-verification-${{ github.run_id }}

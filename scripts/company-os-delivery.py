@@ -101,7 +101,16 @@ def main():
     claim=send("/claim",{},token)
     if claim.get("state")!="LEASED":
         step_output(state="IDLE")
-        print(json.dumps({"state":claim.get("state"),"mutations":0}))
+        # The canonical intake and binding store already return safe aggregate
+        # readiness counters. Expose them in Actions logs so a green no-op
+        # cannot be confused with a completed coding task.
+        readiness=claim.get("readiness") or {}
+        fields=("bound_tasks","eligible","ack_quarantined","awaiting_ack",
+                "missing_decision","task_states","engineer_task_states")
+        summary={k:readiness[k] for k in fields if k in readiness}
+        print(json.dumps({"state":claim.get("state"),"mutations":0,
+                          "canonical_intake_state":(claim.get("canonical_intake") or {}).get("state"),
+                          "readiness":summary},sort_keys=True))
         return
     workstream=claim["workstream_id"]
     if not HEX.fullmatch(workstream) or claim.get("project_id")!="noetfield-earnloop":
