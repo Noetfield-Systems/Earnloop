@@ -23,6 +23,6 @@ test('existing governed coding runner logs idle readiness and resumes only after
  assert.match(workflow,/gh workflow run company-os-delivery\.yml --ref main/);
  assert.match(closeout,/result\.get\('state'\)!='TECHNICALLY_VERIFIED'/);
  assert.match(closeout,/GITHUB_OUTPUT/);
- assert.match(closeout,/state=TECHNICALLY_VERIFIED/);
+ assert.match(closeout,/stream\.write\('state=TECHNICALLY_VERIFIED' \+ chr\(10\)\)/);
  assert.doesNotMatch(workflow,/\bpush --force\b/);
 });
