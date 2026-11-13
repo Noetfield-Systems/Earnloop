@@ -5,12 +5,13 @@ import {setupCompanyOS,createWork,runOne} from '../src/company-os/engine.mjs';
 import {setupEconomics,recordFinance,financeOverview} from '../src/economics.mjs';
 import {discover} from '../src/company-os/opportunities.mjs';
 import {recordToroxPostback} from '../src/torox-record.mjs';
+import {setupRewardLedger,memberRewardStatus} from '../src/reward-ledger.mjs';
 test('Postgres member progression, financial evidence and durable follow-on execution',async()=>{
  const db=new PGlite();const pool={async query(sql,args){if(!args&&sql.trim().split(';').filter(Boolean).length>1){await db.exec(sql);return {rows:[],rowCount:0};}const r=await db.query(sql,args);return {...r,rowCount:r.affectedRows??r.rows.length};},async connect(){return {...this,release(){}};}};
  try{
  const server=fs.readFileSync('src/server.mjs','utf8');const ddl=server.match(/await pool.query\(`(CREATE TABLE IF NOT EXISTS earnloop_members[\s\S]*?)`\);/)[1];await db.exec(ddl);
  await db.exec('ALTER TABLE earnloop_members ADD COLUMN checkin_streak INT NOT NULL DEFAULT 0');
- await setupMemberLoop(pool);await setupCompanyOS(pool);await setupEconomics(pool);
+ await setupMemberLoop(pool);await setupRewardLedger(pool);await setupCompanyOS(pool);await setupEconomics(pool);
  const id='11111111-1111-4111-8111-111111111111';await pool.query('INSERT INTO earnloop_members(id,token_hash,code) VALUES($1,$2,$3)',[id,'test-only','abcdef123456']);const m={id,created_at:new Date(),xp:0};
  const referred='22222222-2222-4222-8222-222222222222';
  await pool.query('INSERT INTO earnloop_members(id,token_hash,code,referrer_id) VALUES($1,$2,$3,$4)',[referred,'referred-test-only','fedcba654321',id]);
@@ -58,5 +59,10 @@ test('Postgres member progression, financial evidence and durable follow-on exec
  await recordToroxPostback(pool,{...cb,eventId:'conv2',amountUnits:'-10',publisherPayoutReported:'-1',reversal:true});
  assert.equal((await pool.query("SELECT count(*)::int n FROM earnloop_torox_postbacks WHERE status='reversal_reported'")).rows[0].n,1);
  assert.equal((await pool.query('SELECT count(*)::int n FROM earnloop_torox_postbacks')).rows[0].n,2);
+ const balance=await memberRewardStatus(pool,id);
+ assert.equal(balance.source.event_count,2);
+ assert.equal(balance.cash.available_for_redemption_minor,0);
+ assert.equal(balance.cash.currency,null);
+ assert.ok(server.includes("route==='/api/earn/balance'"));
  }finally{await db.close();}
 });
