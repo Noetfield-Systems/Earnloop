@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
-import {setupMemberLoop,activity,game,claimChallenge,memberJourney,referralOverview,activationFunnel} from '../src/member-loop.mjs';
+import {setupMemberLoop,activity,game,claimChallenge,memberJourney,referralOverview,activationFunnel,retentionMetrics} from '../src/member-loop.mjs';
 import {setupCompanyOS,createWork,runOne} from '../src/company-os/engine.mjs';
 import {setupEconomics,recordFinance,financeOverview} from '../src/economics.mjs';
 import {discover} from '../src/company-os/opportunities.mjs';
@@ -64,5 +64,22 @@ test('Postgres member progression, financial evidence and durable follow-on exec
  assert.equal(balance.cash.available_for_redemption_minor,0);
  assert.equal(balance.cash.currency,null);
  assert.ok(server.includes("route==='/api/earn/balance'"));
+ // Controlled historical cohort: one eligible D1/D7/D30 member, a newer
+ // D1-only member. Do not count new users as churn before their window.
+ await pool.query("UPDATE earnloop_members SET created_at=NOW()-INTERVAL '40 days' WHERE id=$1",[id]);
+ await pool.query("UPDATE earnloop_members SET created_at=NOW()-INTERVAL '4 days' WHERE id=$1",[referred]);
+ await activity(pool,id,'daily_checkin','retention-d1',{xp:0});
+ await activity(pool,id,'puzzle_completed','retention-d7',{xp:0});
+ for(const [eventKey,days] of [['retention-d1',1],['retention-d7',7]]){
+   await pool.query("UPDATE earnloop_activity SET created_at=(SELECT created_at + make_interval(days=>$3) FROM earnloop_members WHERE id=$1) WHERE member_id=$1 AND event_key=$2",
+     [id,eventKey,days]);
+ }
+ const retention=await retentionMetrics(pool);
+ assert.deepEqual(retention.windows.d1,{eligible:2,returned:1,rate:0.5});
+ assert.deepEqual(retention.windows.d7,{eligible:1,returned:1,rate:1});
+ assert.deepEqual(retention.windows.d30,{eligible:1,returned:0,rate:0});
+ assert.equal(retention.unique_humans_verified,false);
+ assert.equal(retention.paid_user_retention_verified,false);
+ assert.ok(server.includes("route==='/api/company-os/retention'"));
  }finally{await db.close();}
 });

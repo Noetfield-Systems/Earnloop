@@ -112,3 +112,41 @@ export async function game(pool,m,answer){
  }catch(e){await c.query('ROLLBACK');throw e;}finally{c.release();}
 }
 export async function growthMetrics(pool){return (await pool.query(`SELECT kind,COUNT(*)::int events,COUNT(DISTINCT member_id)::int members FROM earnloop_activity GROUP BY kind ORDER BY kind`)).rows;}
+
+/**
+ * D1/D7/D30 retention by UTC signup calendar day.
+ * Denominators include ONLY cohorts old enough to have reached the day.
+ * Actions are authenticated check-ins, puzzles, or initiated offer sessions;
+ * "returned" is a member session, NOT a verified unique human or cash earner.
+ */
+export async function retentionMetrics(pool) {
+ const windows=[1,7,30];
+ const clauses=windows.map(day=>{
+  const signup="(m.created_at AT TIME ZONE 'UTC')::date";
+  const cutoff="(NOW() AT TIME ZONE 'UTC')::date - "+day;
+  return `COUNT(*) FILTER (WHERE ${signup} <= ${cutoff})::int AS eligible_d${day},
+   COUNT(*) FILTER (
+    WHERE ${signup} <= ${cutoff} AND EXISTS (
+      SELECT 1 FROM earnloop_activity a
+      WHERE a.member_id=m.id
+        AND a.kind IN ('daily_checkin','puzzle_completed','offer_started')
+        AND (a.created_at AT TIME ZONE 'UTC')::date = ${signup} + ${day}
+    )
+   )::int AS returned_d${day}`;
+ });
+ const result=await pool.query('SELECT '+clauses.join(', ')+' FROM earnloop_members m');
+ const data=result.rows[0]||{};
+ const output={};
+ for(const day of windows){
+  const eligible=Number(data['eligible_d'+day])||0;
+  const returned=Number(data['returned_d'+day])||0;
+  output['d'+day]={eligible,returned,
+   rate:eligible?Number((returned/eligible).toFixed(4)):null};
+ }
+ return {schema:'earnloop.retention-cohorts.v1',timezone:'UTC',windows:output,
+  activity_definition:'at least one saved check-in, completed daily puzzle or offer start on the exact UTC calendar day after signup',
+  denominator_definition:'only members whose signup UTC date is at least N calendar days old',
+  unique_humans_verified:false,paid_user_retention_verified:false,
+  synthetic_users_excluded:false,
+  caveat:'Session accounts may include test or duplicate people; manual activity and cash status are not independently verified.'};
+}
