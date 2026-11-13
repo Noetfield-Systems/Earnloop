@@ -24,9 +24,9 @@ export async function setupRewardLedger(pool) {
         OR (event_kind='reversal_report' AND reward_units<=0 AND reported_publisher_usd<=0)
       )
     );
-    CREATE INDEX IF NOT EXISTS earnloop_reward_source_member_idx
-      ON earnloop_reward_source_entries(member_id,received_at DESC);
   `);
+  await pool.query(`CREATE INDEX IF NOT EXISTS earnloop_reward_source_member_idx
+      ON earnloop_reward_source_entries(member_id,received_at DESC)`);
   // Old source callbacks have no independent cash settlement proof. Keep
   // them visibly SOURCE_REPORTED even when migrating into the new journal.
   await pool.query(`
