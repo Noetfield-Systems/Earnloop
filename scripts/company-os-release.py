@@ -12,6 +12,7 @@ and GitHub's own branch policy. Any mismatch leaves the candidate on its own
 branch and records an exact blocker.
 """
 from __future__ import annotations
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -97,6 +98,8 @@ def main():
     receipt=json.loads(Path(os.environ["SINA_RECEIPT_FILE"]).read_text())
     allowed=check_claim(evidence,receipt,os.environ.get("GITHUB_REPOSITORY"))
     branch=evidence["branch_ref"]
+    if BRANCH.fullmatch(branch).group(2)!=os.environ.get("GITHUB_RUN_ID"):
+        raise ValueError("GITHUB_RUN_ID_NOT_BINDING_CANDIDATE")
     head=evidence["head_sha"]
     base=evidence["source_sha"]
     shell("git","fetch","origin","main",timeout=90)
@@ -118,6 +121,12 @@ def main():
             raise ValueError("UNEXPECTED_GIT_OBJECT")
     shell("git","checkout","--detach",head)
     shell("git","diff","--check",base,head)
+    for kind in ("module","test"):
+        path=ROOT/evidence[kind+"_path"]
+        if path.is_symlink() or not path.is_file():
+            raise ValueError("CANDIDATE_PATH_IS_NOT_FILE")
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=evidence[kind+"_sha256"]:
+            raise ValueError("INDEPENDENT_SOURCE_HASH_MISMATCH")
     shell("npm","run","verify",timeout=450)
     reverify_receipt(receipt)
     # Normal fast-forward only: no force, no admin bypass, no overwrite or
