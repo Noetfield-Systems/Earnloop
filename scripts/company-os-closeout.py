@@ -27,6 +27,11 @@ def main():
     receipt=post(VERIFIER,evidence,token)
     result=post(module.API+'/verify',receipt,token)
     if result.get('state')!='TECHNICALLY_VERIFIED': raise RuntimeError('VERIFICATION_NOT_RECORDED')
+    # A GitHub/CI signature alone does not close the real Founder WorkPacket.
+    # Only the independent verifier's source-bound, signed Founder DONE proof
+    # can unlock the next canonical Engineering mission.
+    if result.get('founder_workstream_done') is not True:
+        raise RuntimeError('CANONICAL_FOUNDER_WORKSTREAM_NOT_DONE')
     Path('company-delivery-verification.json').write_text(json.dumps(receipt,sort_keys=True,indent=2))
     # Only an independently signed and accepted technical verification may
     # dispatch one more existing GitHub runner pass. No release permit implied.
