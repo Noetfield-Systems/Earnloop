@@ -53,3 +53,36 @@ test('actual Postgres referrer relation determines attribution; invitee only get
   assert.ok(html.includes('id="inviteLanding"'));
   assert.ok(!html.includes('Guaranteed referral reward'));
 });
+
+test('inbound ref survives homepage → earn path without inventing attribution',()=>{
+  const link={href:'/earn',getAttribute(k){return this[k];},setAttribute(k,v){this[k]=v;}};
+  const get=()=>({addEventListener(){},replaceChildren(){},append(){},textContent:''});
+  const context={URL,location:{href:'https://earnloop.example/?ref=012345abcdef&utm_source=telegram',
+     origin:'https://earnloop.example'},document:{getElementById:get,
+     querySelectorAll:()=>[link],createElement:()=>({})},
+     fetch:async path=>({ok:true,json:async()=>({
+       '/api/stats':{members:0,early_access:0},
+       '/api/me':{member:null},'/api/leaderboard':{leaders:[]},
+       '/api/offerwall/status':{enabled:false}}[path])}),
+     navigator:{},CustomEvent:class{}};
+  context.window=context;
+  runInNewContext(app,context);
+  assert.equal(link.href,'/earn?ref=012345abcdef&utm_source=telegram');
+});
+test('earn page uses original referral for both membership and native offer',()=>{
+  const earn=readFileSync(new URL('../public/earn.js',import.meta.url),'utf8');
+  const match=earn.match(/function signupAttribution\(defaultSource='earn'\)\{[\s\S]*?\n\}/);
+  assert.ok(match,'earn page must preserve a validated referral');
+  const getContext=(search)=>{
+    const context={URL,location:{href:'https://earnloop.example/earn'+search}};
+    return runInNewContext(match[0]+'; signupAttribution("native-offer")',context);
+  };
+  const result=getContext('?ref=ABCDEF012345&utm_source=discord');
+  assert.equal(result.ref,'abcdef012345');
+  assert.equal(result.source,'discord');
+  const bad=getContext('?ref=malicious-%%&utm_source=%3Cscript%3E');
+  assert.equal(bad.ref,undefined);
+  assert.equal(bad.source,'native-offer');
+  assert.match(earn,/api\('\/api\/start','POST',signupAttribution\(\)\)/);
+  assert.match(earn,/api\('\/api\/start','POST',signupAttribution\('native-offer'\)\)/);
+});
