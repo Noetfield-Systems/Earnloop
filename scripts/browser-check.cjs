@@ -20,6 +20,14 @@ await page.waitForFunction(()=>document.getElementById('referralCount')?.textCon
 await friend.close();
 await page.screenshot({path:'test-results/earnloop-mobile.png',fullPage:true});const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);if(overflow)console.log(await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>e.getBoundingClientRect().right>innerWidth+1&&getComputedStyle(e).position!=='absolute').map(e=>({tag:e.tagName,id:e.id,class:e.className,right:e.getBoundingClientRect().right})).slice(0,25)));await page.goto('http://127.0.0.1:3100/sponsor');await page.fill('#sponsorEmail','test@example.com');await page.fill('#sponsorName','Local Test Sponsor');await page.fill('#sponsorBrief','Isolated local integration test, not a real commercial lead.');await page.check('#sponsorConsent');await page.click('#sponsorForm button');await page.waitForFunction(()=>document.getElementById('sponsorStatus').textContent.includes('Inquiry saved'));await page.goto('http://127.0.0.1:3100/earn');
 await page.waitForSelector('#offers .empty');
+await page.waitForSelector('#questMap .reward-station');
+if(await page.locator('#questMap .reward-station').count()!==6)throw Error('Expected six real activity stations');
+if(await page.locator('#questMap .reward-station.earned').count()!==3)throw Error('Member join + UTC checkin + puzzle should be source-earned, without fake cash');
+if(!(await page.locator('#questMapCount').textContent()).includes('3 / 6'))throw Error('Quest progress must reflect actual persisted events');
+if(!(await page.locator('#questMap').textContent()).includes('Partner inventory has not been confirmed'))throw Error('Unavailable advertiser inventory must remain explicit');
+await page.screenshot({path:'test-results/earnloop-quest-path-mobile.png',fullPage:true});
+if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))throw Error('Quest Map overflows mobile viewport');
+
 await page.fill('#amount','2500');
 await page.check('#ack');
 await page.click('#redeemForm button');
