@@ -14,6 +14,7 @@ import {REPLICATION_TARGETS,nextCommercialAction} from './company-os/replication
 import {assessCompanyOutcome} from './company-os/shared-evidence-gate.mjs';
 import {toroxConfigured,createToroxWallSession,parseToroxPostback} from './torox.mjs';
 import {recordToroxPostback} from './torox-record.mjs';
+import {setupRewardLedger,memberRewardStatus} from './reward-ledger.mjs';
 import {tremendousConfigured,readTremendousFunding,readTremendousProducts} from './tremendous.mjs';
 import {toroxApiConfigured,listToroxOffers,createToroxOfferClick} from './torox-api.mjs';
 import {setupOperations,getOperations,memberOffers,trackMember,requestRedemption,memberRedemptions,operate} from './operations.mjs';
@@ -87,6 +88,7 @@ async function init(){
  CREATE INDEX IF NOT EXISTS earnloop_referrers_idx ON earnloop_members(referrer_id);`);
  await pool.query('ALTER TABLE earnloop_members ADD COLUMN IF NOT EXISTS checkin_streak INT NOT NULL DEFAULT 0 CHECK(checkin_streak>=0)');
  await setupMemberLoop(pool);
+ await setupRewardLedger(pool);
  await setupEconomics(pool);
  await setupCompanyOS(pool);
  await setupCommercial(pool);
@@ -172,7 +174,11 @@ async function server(req,res){
    invited_by_member:!!m.referrer_id,streak:m.checkin_streak},referrals,cash_cents:0,cash_payouts_enabled:false});
  }
  if(method==='GET'&&route==='/api/earn/offers')return send(res,200,await memberOffers(pool));
- if(method==='GET'&&route==='/api/earn/redemptions'){
+ if(method==='GET'&&route==='/api/earn/balance'){
+   const m=await member(req);if(!m)return fail(res,401,'Join first');
+   return send(res,200,await memberRewardStatus(pool,m.id));
+  }
+  if(method==='GET'&&route==='/api/earn/redemptions'){
   const m=await member(req);if(!m)return fail(res,401,'Join first');
   return send(res,200,await memberRedemptions(pool,m.id));
  }
