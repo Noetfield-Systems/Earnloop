@@ -86,3 +86,27 @@ test('earn page uses original referral for both membership and native offer',()=
   assert.match(earn,/api\('\/api\/start','POST',signupAttribution\(\)\)/);
   assert.match(earn,/api\('\/api\/start','POST',signupAttribution\('native-offer'\)\)/);
 });
+
+test('Factory UTM source, medium and campaign survive homepage to Earn without inviter code',()=>{
+ const link={href:'/earn',getAttribute(k){return this[k];},setAttribute(k,v){this[k]=v;}};
+ const get=()=>({addEventListener(){},replaceChildren(){},append(){},textContent:''});
+ const url='https://earnloop.example/?utm_source=github&utm_medium=community&utm_campaign=earnloop-launch';
+ const context={URL,location:{href:url,origin:'https://earnloop.example'},
+  document:{getElementById:get,querySelectorAll:()=>[link],createElement:()=>({})},
+  fetch:async()=>({ok:true,json:async()=>({member:null,leaders:[],members:0,early_access:0,enabled:false})}),
+  navigator:{},CustomEvent:class{}};
+ context.window=context;
+ runInNewContext(app,context);
+ assert.equal(link.href,'/earn?utm_source=github&utm_medium=community&utm_campaign=earnloop-launch');
+});
+test('malformed campaign tags cannot inject into Earn source URL',()=>{
+ const link={href:'/earn',getAttribute(k){return this[k];},setAttribute(k,v){this[k]=v;}};
+ const get=()=>({addEventListener(){},replaceChildren(){},append(){},textContent:''});
+ const context={URL,location:{href:'https://earnloop.example/?utm_source=%3Cscript%3E&utm_medium=email%20spoof&utm_campaign=overlong-'+('a'.repeat(100)),origin:'https://earnloop.example'},
+  document:{getElementById:get,querySelectorAll:()=>[link],createElement:()=>({})},
+  fetch:async()=>({ok:true,json:async()=>({member:null,leaders:[],members:0,early_access:0,enabled:false})}),
+  navigator:{},CustomEvent:class{}};
+ context.window=context;
+ runInNewContext(app,context);
+ assert.equal(link.href,'/earn');
+});
