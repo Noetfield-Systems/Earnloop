@@ -16,17 +16,22 @@ function showInviteEntry(member){
  else if(!member&&pending)entry.textContent='A member invitation link was detected. Join free to confirm attribution; no referral reward is promised.';
 }
 function preserveInviteAcrossEarnLinks(){
-  // Carry only a syntactically valid invitation code to same-origin /earn.
-  // The server independently verifies inviter ownership at enrollment.
+  // Keep project-specific Launch Factory campaign attribution across the
+  // homepage -> Earn route, even when there is NO member referral.
+  // Referrer ownership is still verified server-side during enrollment.
   const params=new URL(location.href).searchParams;
   const ref=(params.get('ref')||'').trim().toLowerCase();
-  if(!/^[a-f0-9]{12}$/.test(ref)||!document.querySelectorAll)return;
-  const source=(params.get('utm_source')||'').trim();
+  if(!document.querySelectorAll)return;
+  const campaignFields=[['utm_source',40],['utm_medium',40],['utm_campaign',80]]
+    .map(([name,max])=>[name,(params.get(name)||'').trim(),max]);
   for(const anchor of document.querySelectorAll('a[href="/earn"]')){
     const target=new URL(anchor.getAttribute('href'),location.origin);
-    target.searchParams.set('ref',ref);
-    if(/^[a-zA-Z0-9_-]{1,40}$/.test(source))target.searchParams.set('utm_source',source);
-    anchor.setAttribute('href',target.pathname+target.search);
+    if(/^[a-f0-9]{12}$/.test(ref))target.searchParams.set('ref',ref);
+    for(const [name,value,max] of campaignFields){
+      if(value.length<=max&&/^[a-zA-Z0-9_-]+$/.test(value))
+        target.searchParams.set(name,value);
+    }
+    if(target.search)anchor.setAttribute('href',target.pathname+target.search);
   }
 }
 preserveInviteAcrossEarnLinks();
