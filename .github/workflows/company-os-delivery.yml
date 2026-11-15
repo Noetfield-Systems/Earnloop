@@ -2,14 +2,14 @@ name: SINA Company OS - governed Earnloop code delivery
 on:
   push:
     branches: [main]
-    paths: [".github/workflows/company-os-delivery.yml", "scripts/company-os-closeout.py", "scripts/company-os-release.py"]
+    paths: [".github/workflows/company-os-delivery.yml", "scripts/company-os-closeout.py", "scripts/company-os-release.py", "scripts/launch-factory-source-status.py"]
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
   issues:
     types: [opened]
   pull_request:
-    paths: [".github/workflows/company-os-delivery.yml", "scripts/company-os-release.py", "tests/test_company_os_release.py"]
+    paths: [".github/workflows/company-os-delivery.yml", "scripts/company-os-release.py", "tests/test_company_os_release.py", "scripts/launch-factory-source-status.py", "tests/test_launch_factory_source_status.py"]
 permissions:
   contents: read
 concurrency:
@@ -29,7 +29,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Test generated-only release policy
-        run: python3 -m unittest discover -s tests -p 'test_company_os_release.py' -v
+        run: |
+          python3 -m unittest discover -s tests -p 'test_company_os_release.py' -v
+          python3 -m unittest discover -s tests -p 'test_launch_factory_source_status.py' -v
 
   candidate:
     if: >-
@@ -42,6 +44,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
       id-token: write
     outputs:
       state: ${{ steps.deliver.outputs.state }}
@@ -66,6 +69,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/company-os-delivery.py
+      - name: Publish honest source runner status to the authorized trigger
+        if: ${{ always() && github.event_name == 'issues' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRIGGER_ISSUE: ${{ github.event.issue.number }}
+          CANDIDATE_STATE: ${{ steps.deliver.outputs.state }}
+          CANDIDATE_WORKSTREAM: ${{ steps.deliver.outputs.workstream }}
+          CANDIDATE_HEAD_SHA: ${{ steps.deliver.outputs.head_sha }}
+        run: python3 scripts/launch-factory-source-status.py
       - name: Preserve original source and generated candidate hashes
         if: ${{ (steps.deliver.outputs.state == 'OPENED' || steps.deliver.outputs.state == 'BRANCH_READY') }}
         uses: actions/upload-artifact@v4
